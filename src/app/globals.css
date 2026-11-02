@@ -55,3 +55,78 @@ body {
 .btn:disabled { opacity: 0.5; }
 .btn-ghost { background: var(--surface-2); color: var(--text); border: 1px solid var(--line); }
 .card { background: var(--surface); border: 1px solid var(--line); border-radius: 1rem; }
+
+/* ---------- Page loader ---------- */
+/* Delay before showing so quick navigations don't flash. */
+.loader { animation: loader-in 0.35s ease-out 0.12s both; }
+@keyframes loader-in {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: none; }
+}
+
+/* Three coins drop onto a stack, glint, then lift away together. */
+.coins { position: relative; width: 56px; height: 60px; }
+.coin {
+  position: absolute; left: 6px; width: 44px; height: 15px; border-radius: 50%;
+  background: linear-gradient(180deg, #a7f7ea 0%, var(--accent) 40%, #2fb8a3 100%);
+  box-shadow: inset 0 -3px 0 #1c8a7a, inset 0 1px 0 rgb(255 255 255 / 0.5), 0 0 14px rgb(94 234 212 / 0.18);
+  opacity: 0;
+  animation: 2.6s cubic-bezier(0.45, 0, 0.55, 1) infinite both;
+}
+.coin-1 { bottom: 4px; animation-name: coin-1; }
+.coin-2 { bottom: 14px; animation-name: coin-2; }
+.coin-3 { bottom: 24px; animation-name: coin-3; }
+.coin-shadow {
+  position: absolute; left: 4px; bottom: 0; width: 48px; height: 10px; border-radius: 50%;
+  background: radial-gradient(closest-side, rgb(94 234 212 / 0.35), transparent);
+  animation: coin-shadow 2.6s ease-in-out infinite both;
+}
+@keyframes coin-1 {
+  0%   { opacity: 0; transform: translateY(-46px); }
+  12%  { opacity: 1; transform: translateY(0) scale(1.08, 0.78); }
+  17%  { transform: translateY(-3px) scale(1); }
+  20%, 78% { opacity: 1; transform: translateY(0); }
+  92%, 100% { opacity: 0; transform: translateY(-14px); }
+}
+@keyframes coin-2 {
+  0%, 16% { opacity: 0; transform: translateY(-46px); }
+  28%  { opacity: 1; transform: translateY(0) scale(1.08, 0.78); }
+  33%  { transform: translateY(-3px) scale(1); }
+  36%, 78% { opacity: 1; transform: translateY(0); }
+  92%, 100% { opacity: 0; transform: translateY(-18px); }
+}
+@keyframes coin-3 {
+  0%, 32% { opacity: 0; transform: translateY(-46px); }
+  44%  { opacity: 1; transform: translateY(0) scale(1.08, 0.78); filter: none; }
+  49%  { transform: translateY(-3px) scale(1); }
+  52%  { opacity: 1; transform: translateY(0); filter: none; }
+  60%  { filter: brightness(1.35) drop-shadow(0 0 6px rgb(94 234 212 / 0.7)); }
+  68%, 78% { opacity: 1; transform: translateY(0); filter: none; }
+  92%, 100% { opacity: 0; transform: translateY(-22px); }
+}
+@keyframes coin-shadow {
+  0%, 100% { opacity: 0.2; transform: scaleX(0.5); }
+  12% { opacity: 0.5; transform: scaleX(0.8); }
+  44%, 78% { opacity: 1; transform: scaleX(1.05); }
+  92% { opacity: 0.2; transform: scaleX(0.5); }
+}
+
+.dots span { animation: dot 1.2s infinite both; }
+.dots span:nth-child(2) { animation-delay: 0.2s; }
+.dots span:nth-child(3) { animation-delay: 0.4s; }
+@keyframes dot { 0%, 80%, 100% { opacity: 0.15; } 40% { opacity: 1; } }
+
+/* Skeleton blocks with a soft sweep. */
+.skel-wrap { opacity: 0.75; }
+.skel { position: relative; overflow: hidden; background: var(--surface-2); border-radius: 0.4rem; }
+.skel::after {
+  content: ""; position: absolute; inset: 0; transform: translateX(-100%);
+  background: linear-gradient(90deg, transparent, rgb(255 255 255 / 0.06), transparent);
+  animation: shimmer 1.5s ease-in-out infinite;
+}
+@keyframes shimmer { to { transform: translateX(100%); } }
+
+@media (prefers-reduced-motion: reduce) {
+  .loader, .coin, .coin-shadow, .dots span, .skel::after { animation: none; }
+  .coin, .coin-shadow { opacity: 1; }
+}
