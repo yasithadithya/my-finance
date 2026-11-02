@@ -1,9 +1,19 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { getAccounts } from "@/lib/data";
-import { currentMonth, dayLabel, monthLabel, monthRange, shiftMonth } from "@/lib/format";
+import { currentMonth, dayLabel, lkr, monthLabel, monthRange, shiftMonth } from "@/lib/format";
 import type { Txn } from "@/lib/types";
 import TxnRow from "@/components/TxnRow";
+import MonthNav from "@/components/MonthNav";
+
+/** "Today", "Yesterday" or the weekday name ("Monday"). */
+function weekday(date: string) {
+  const l = dayLabel(date);
+  if (l === "Today" || l === "Yesterday") return l;
+  return new Date(date + "T00:00:00Z").toLocaleDateString("en-GB", { weekday: "long", timeZone: "UTC" });
+}
+
+const spentOn =(list: Txn[]) => list.filter((t) => t.kind === "expense").reduce((s, t) => s + Number(t.amount), 0);
 
 export const dynamic = "force-dynamic";
 
@@ -37,29 +47,33 @@ export default async function TransactionsPage({
   const link = (m: string, acc = account) => `/transactions?month=${m}${acc ? `&account=${acc}` : ""}`;
 
   return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <Link href={link(shiftMonth(ym, -1))} className="btn btn-ghost px-3 py-2" aria-label="Previous month">‹</Link>
-        <h1 className="text-lg font-semibold">{monthLabel(ym)}</h1>
-        <Link href={link(shiftMonth(ym, 1))} className="btn btn-ghost px-3 py-2" aria-label="Next month">›</Link>
-      </div>
+    <div className="space-y-5">
+      <MonthNav label={monthLabel(ym)} prev={link(shiftMonth(ym, -1))} next={link(shiftMonth(ym, 1))} />
 
-      <div className="flex gap-2 overflow-x-auto pb-1 text-sm">
-        <Link href={link(ym, "")} className={`shrink-0 rounded-full border px-3 py-1 ${!account ? "border-accent text-accent" : "border-line text-muted"}`}>All</Link>
+      <div className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1">
+        <Link href={link(ym, "")} className="pill" aria-current={!account ? "true" : undefined}>All</Link>
         {accounts.filter((a) => !a.archived).map((a) => (
-          <Link key={a.id} href={link(ym, a.id)} className={`shrink-0 rounded-full border px-3 py-1 ${account === a.id ? "border-accent text-accent" : "border-line text-muted"}`}>
+          <Link key={a.id} href={link(ym, a.id)} className="pill" aria-current={account === a.id ? "true" : undefined}>
             {a.name}
           </Link>
         ))}
       </div>
 
       {txns.length === 0 ? (
-        <p className="text-sm text-muted">No transactions this month.</p>
+        <p className="card p-4 text-sm text-muted">
+          No transactions this month. <Link href="/add" className="text-accent underline">Add one</Link>.
+        </p>
       ) : (
         [...groups.entries()].map(([date, list]) => (
           <section key={date}>
-            <h2 className="mb-1.5 text-xs font-medium uppercase tracking-wide text-muted">{dayLabel(date)}</h2>
-            <ul className="card divide-y divide-line">
+            <div className="mb-2 flex items-end justify-between gap-3 px-1">
+              <h2 className="flex items-baseline gap-2">
+                <span className="font-serif text-2xl leading-none font-medium num">{Number(date.slice(8, 10))}</span>
+                <span className="text-sm text-muted">{weekday(date)}</span>
+              </h2>
+              {spentOn(list) > 0 && <span className="num text-xs text-muted">Spent {lkr(spentOn(list))}</span>}
+            </div>
+            <ul className="ledger">
               {list.map((t) => <TxnRow key={t.id} t={t} byId={byId} />)}
             </ul>
           </section>

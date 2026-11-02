@@ -47,7 +47,7 @@ const ROW_WIDTHS = [9, 6.5, 8, 5.5, 7.5];
 
 function Rows({ n }: { n: number }) {
   return (
-    <div className="card divide-y divide-line">
+    <div className="ledger">
       {Array.from({ length: n }, (_, i) => (
         <div key={i} className="flex items-center justify-between px-4 py-3.5">
           <Bar className="h-3.5" w={ROW_WIDTHS[i % ROW_WIDTHS.length]} />
@@ -61,19 +61,19 @@ function Rows({ n }: { n: number }) {
 function Dashboard() {
   return (
     <>
-      <div className="space-y-2">
+      <div className="panel space-y-3">
         <Bar className="h-3 w-24" />
-        <Bar className="h-8 w-48" />
+        <Bar className="h-10 w-52" />
         <Bar className="h-3 w-40" />
-      </div>
-      <div className="card space-y-3 p-4">
-        <Bar className="h-3 w-28" />
-        {[0, 1, 2, 3].map((i) => (
-          <div key={i} className="flex justify-between">
-            <Bar className="h-3 w-24" />
-            <Bar className="h-3 w-20" />
-          </div>
-        ))}
+        <Bar className="mt-6 h-4 w-full" />
+        <div className="grid grid-cols-2 gap-3 pt-4">
+          {[0, 1, 2, 3].map((i) => (
+            <div key={i} className="space-y-1.5">
+              <Bar className="h-2.5 w-16" />
+              <Bar className="h-3 w-24" />
+            </div>
+          ))}
+        </div>
       </div>
       <div className="card space-y-3 p-4">
         <div className="flex justify-between">

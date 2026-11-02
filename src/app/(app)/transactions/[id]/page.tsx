@@ -20,7 +20,7 @@ export default async function EditTxnPage({ params }: { params: Promise<{ id: st
 
   return (
     <div className="space-y-6">
-      <h1 className="text-xl font-semibold">Edit transaction</h1>
+      <h1 className="font-serif text-[1.75rem] leading-tight font-medium">Edit transaction</h1>
       {t.kind === "adjustment" ? (
         <p className="text-sm text-muted">Adjustments come from reconciling and can only be deleted.</p>
       ) : (

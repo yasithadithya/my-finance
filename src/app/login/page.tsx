@@ -6,8 +6,14 @@ export default function LoginPage() {
   const [state, action, pending] = useActionState(signIn, undefined);
   return (
     <main className="mx-auto flex min-h-dvh max-w-sm flex-col justify-center px-4">
-      <h1 className="mb-1 text-2xl font-semibold">My Expenses</h1>
-      <p className="mb-8 text-sm text-muted">Sign in to continue.</p>
+      <div className="coins coins-still mb-6" aria-hidden>
+        <span className="coin-shadow" />
+        <span className="coin coin-1" />
+        <span className="coin coin-2" />
+        <span className="coin coin-3" />
+      </div>
+      <h1 className="mb-1 font-serif text-4xl font-medium">My Expenses</h1>
+      <p className="mb-10 text-sm text-muted">Sign in to see your accounts and what&apos;s due.</p>
       <form action={action} className="space-y-4">
         <div>
           <label className="label" htmlFor="email">Email</label>

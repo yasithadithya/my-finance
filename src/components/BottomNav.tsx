@@ -10,32 +10,49 @@ const items = [
   { href: "/accounts", label: "Accounts", icon: "M3 7h18v12H3zM3 11h18M7 15h3" },
 ];
 
+function Icon({ d, size = 22 }: { d: string; size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <path d={d} />
+    </svg>
+  );
+}
+
 export default function BottomNav() {
   const path = usePathname();
   return (
     <nav
-      className="fixed inset-x-0 bottom-0 z-20 border-t border-line bg-bg/95 backdrop-blur"
+      className="fixed inset-x-0 bottom-0 z-20 border-t border-line bg-bg"
       style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
     >
-      <ul className="mx-auto grid max-w-md grid-cols-5">
+      <ul className="mx-auto grid max-w-md grid-cols-5 px-2">
         {items.map((it) => {
           const active = it.href === "/" ? path === "/" : path.startsWith(it.href);
+          if (it.primary) {
+            return (
+              <li key={it.href} className="relative flex justify-center">
+                <Link
+                  href={it.href}
+                  aria-label="Add transaction"
+                  aria-current={active ? "page" : undefined}
+                  className="absolute -top-5 grid h-14 w-14 place-items-center rounded-full bg-accent text-on-accent ring-4 ring-bg transition-transform active:scale-95"
+                >
+                  <Icon d={it.icon} size={26} />
+                </Link>
+              </li>
+            );
+          }
           return (
             <li key={it.href}>
               <Link
                 href={it.href}
-                className={`flex flex-col items-center gap-1 py-2.5 text-[11px] ${active ? "text-accent" : "text-muted"}`}
+                aria-current={active ? "page" : undefined}
+                className={`flex flex-col items-center gap-0.5 py-2 text-[11px] transition-colors ${active ? "text-text" : "text-muted"}`}
               >
                 <span
-                  className={
-                    it.primary
-                      ? "grid h-9 w-9 place-items-center rounded-full bg-accent text-[#062a26]"
-                      : "grid h-9 w-9 place-items-center"
-                  }
+                  className={`grid h-8 w-14 place-items-center rounded-full transition-colors ${active ? "bg-accent/15 text-accent" : ""}`}
                 >
-                  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <path d={it.icon} />
-                  </svg>
+                  <Icon d={it.icon} />
                 </span>
                 {it.label}
               </Link>

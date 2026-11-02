@@ -1,25 +1,23 @@
 import Link from "next/link";
 import type { Reminder } from "@/lib/reminders";
 
-const TONE = {
-  out: "border-out/40 bg-out/10",
-  warn: "border-warn/40 bg-warn/10",
-  info: "border-line bg-surface",
-};
-const DOT = { out: "bg-out", warn: "bg-warn", info: "bg-accent" };
+const BAR = { out: "bg-out", warn: "bg-warn", info: "bg-accent" };
 
 export default function Reminders({ items }: { items: Reminder[] }) {
   if (!items.length) return null;
   return (
-    <ul className="space-y-2">
+    <ul className="ledger">
       {items.map((r) => (
         <li key={r.key}>
-          <Link href={r.href} className={`flex gap-3 rounded-xl border px-3.5 py-2.5 ${TONE[r.tone]}`}>
-            <span className={`mt-1.5 h-2 w-2 shrink-0 rounded-full ${DOT[r.tone]}`} />
-            <span className="min-w-0">
+          <Link href={r.href} className="relative flex items-center gap-3 py-3 pr-4 pl-5">
+            <span className={`absolute inset-y-2.5 left-0 w-[3px] rounded-r-full ${BAR[r.tone]}`} aria-hidden />
+            <span className="min-w-0 flex-1">
               <span className="block text-sm font-medium">{r.title}</span>
               <span className="block text-xs text-muted">{r.body}</span>
             </span>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="shrink-0 text-muted" aria-hidden>
+              <path d="m9 6 6 6-6 6" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
           </Link>
         </li>
       ))}
@@ -29,7 +27,13 @@ export default function Reminders({ items }: { items: Reminder[] }) {
 
 export function StatusChip({ status, days }: { status: "paid" | "due" | "overdue"; days: number }) {
   const cls =
-    status === "paid" ? "text-in border-in/40" : status === "overdue" ? "text-out border-out/40" : days <= 7 ? "text-warn border-warn/40" : "text-muted border-line";
+    status === "paid"
+      ? "bg-in/15 text-in"
+      : status === "overdue"
+        ? "bg-out/15 text-out"
+        : days <= 7
+          ? "bg-warn/15 text-warn"
+          : "bg-surface-2 text-muted";
   const text = status === "paid" ? "Paid" : status === "overdue" ? "Overdue" : days === 0 ? "Due today" : `${days}d left`;
-  return <span className={`shrink-0 rounded-full border px-2 py-0.5 text-[11px] ${cls}`}>{text}</span>;
+  return <span className={`chip ${cls}`}>{text}</span>;
 }

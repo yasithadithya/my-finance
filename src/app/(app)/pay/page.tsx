@@ -7,6 +7,9 @@ import { currentMonth, dayIn, lkr, monthLabel, monthRange, ordinal, shiftMonth, 
 import { isDebtType, type Account } from "@/lib/types";
 import { payStatement, tickRecurring, untickRecurring } from "@/app/actions";
 import { StatusChip } from "@/components/Reminders";
+import Amount from "@/components/Amount";
+import MonthRunway from "@/components/MonthRunway";
+import MonthNav from "@/components/MonthNav";
 
 export const dynamic = "force-dynamic";
 
@@ -36,25 +39,28 @@ export default async function PayPage({ searchParams }: { searchParams: Promise<
 
   return (
     <div className="space-y-5">
-      <div className="flex items-center justify-between">
-        <Link href={`/pay?month=${shiftMonth(ym, -1)}`} className="btn btn-ghost px-3 py-2" aria-label="Previous month">‹</Link>
-        <h1 className="text-lg font-semibold">Pay · {monthLabel(ym)}</h1>
-        <Link href={`/pay?month=${shiftMonth(ym, 1)}`} className="btn btn-ghost px-3 py-2" aria-label="Next month">›</Link>
-      </div>
+      <MonthNav label={monthLabel(ym)} prev={`/pay?month=${shiftMonth(ym, -1)}`} next={`/pay?month=${shiftMonth(ym, 1)}`} />
 
-      <section className="card p-4">
+      <section className="panel">
         <p className="text-sm text-muted">Still to pay</p>
-        <p className="num text-3xl font-semibold">{lkr(fixedLeft + billsLeft)}</p>
-        <p className="num mt-1 text-xs text-muted">
-          {lkr(billsLeft)} card bills · {lkr(fixedLeft)} fixed · {lkr(fixedDone)} ticked
+        <p className="mt-2 text-[2.25rem] font-medium">
+          <Amount value={fixedLeft + billsLeft} />
         </p>
+        <div className="mt-5">
+          <MonthRunway ym={ym} today={today} bills={statements} fixed={checklist} cards={accounts.filter((a) => a.type === "credit_card")} />
+        </div>
+        <dl className="num mt-4 grid grid-cols-3 gap-3 border-t border-line pt-4 text-sm">
+          <div className="min-w-0"><dt className="text-xs text-muted">Card bills</dt><dd className="truncate">{lkr(billsLeft)}</dd></div>
+          <div className="min-w-0"><dt className="text-xs text-muted">Fixed</dt><dd className="truncate">{lkr(fixedLeft)}</dd></div>
+          <div className="min-w-0"><dt className="text-xs text-muted">Ticked</dt><dd className="truncate text-in">{lkr(fixedDone)}</dd></div>
+        </dl>
       </section>
 
       <section>
-        <h2 className="mb-2 text-sm font-medium text-muted">Card bills</h2>
+        <div className="section-head"><h2>Card bills</h2></div>
         {bills.length === 0 && cards.length === 0 && <p className="text-sm text-muted">No credit cards.</p>}
         {bills.length > 0 && (
-          <ul className="card divide-y divide-line">
+          <ul className="ledger">
             {bills.map((s) => <BillRow key={s.id} s={s} payFrom={payFrom} today={today} ym={ym} />)}
           </ul>
         )}
@@ -72,16 +78,16 @@ export default async function PayPage({ searchParams }: { searchParams: Promise<
       </section>
 
       <section>
-        <div className="mb-2 flex items-baseline justify-between">
-          <h2 className="text-sm font-medium text-muted">Fixed payments</h2>
-          <Link href="/pay/items" className="text-xs text-accent">Manage</Link>
+        <div className="section-head">
+          <h2>Fixed payments</h2>
+          <Link href="/pay/items">Manage</Link>
         </div>
         {checklist.length === 0 ? (
           <p className="text-sm text-muted">
             No fixed payments. <Link href="/pay/items/new" className="text-accent underline">Add one</Link>.
           </p>
         ) : (
-          <ul className="card divide-y divide-line">
+          <ul className="ledger">
             {checklist.map((i) => <ItemRow key={i.id} item={i} ym={ym} today={today} now={now} payFrom={payFrom} byId={byId} />)}
           </ul>
         )}
@@ -101,12 +107,12 @@ function BillRow({ s, payFrom, today, ym }: { s: StatementView; payFrom: Account
         <span className="min-w-0">
           <span className="block truncate font-medium">{s.card_name}</span>
           <span className="block text-xs text-muted">
-            Statement {shortDate(s.statement_date)} · due {shortDate(s.due_date)}
-            {s.instalments > 0 && <> · incl. {lkr(s.instalments)} instalment</>}
+            Due {shortDate(s.due_date)}, statement {shortDate(s.statement_date)}
+            {s.instalments > 0 && <>. Includes {lkr(s.instalments)} instalment</>}
           </span>
         </span>
-        <span className="text-right">
-          <span className="num block">{lkr(s.status === "paid" ? s.statement_balance : s.remaining)}</span>
+        <span className="flex flex-col items-end gap-1">
+          <span className="num">{lkr(s.status === "paid" ? s.statement_balance : s.remaining)}</span>
           <StatusChip status={s.status} days={s.days_left} />
         </span>
       </div>
@@ -115,7 +121,7 @@ function BillRow({ s, payFrom, today, ym }: { s: StatementView; payFrom: Account
       )}
       {s.status !== "paid" && payFrom.length > 0 && (
         <details className="mt-2">
-          <summary className="cursor-pointer text-sm text-accent">Pay this bill</summary>
+          <summary className="cursor-pointer text-sm font-medium text-accent">Pay this bill</summary>
           <form action={payStatement} className="mt-2 grid grid-cols-2 gap-2">
             <input type="hidden" name="card_id" value={s.account_id} />
             <input type="hidden" name="note" value={`${s.card_name} bill`} />
@@ -156,7 +162,7 @@ function ItemRow({
       <span className={`block truncate ${item.mark ? "text-muted line-through" : ""}`}>{item.name}</span>
       <span className={`block truncate text-xs ${late ? "text-out" : "text-muted"}`}>
         {item.due_day ? `Due the ${ordinal(item.due_day)}` : "Any day"}
-        {from ? ` · ${from.name}` : ""}
+        {from ? `, from ${from.name}` : ""}
       </span>
     </span>
   );
@@ -170,7 +176,7 @@ function ItemRow({
           <form action={untickRecurring}>
             <input type="hidden" name="mark_id" value={item.mark.id} />
             <input type="hidden" name="month" value={ym} />
-            <button className="grid h-9 w-9 place-items-center rounded-full bg-accent text-sm font-bold text-[#062a26]" aria-label={`Undo ${item.name}`} title="Tap to undo">
+            <button className="grid h-9 w-9 place-items-center rounded-full bg-accent text-sm font-bold text-on-accent transition-transform active:scale-90" aria-label={`Undo ${item.name}`} title="Tap to undo">
               D
             </button>
           </form>
@@ -185,7 +191,8 @@ function ItemRow({
       <input type="hidden" name="month" value={ym} />
     </>
   );
-  const ring = "grid h-9 w-9 place-items-center rounded-full border-2 border-line text-sm font-bold text-muted";
+  const ring =
+    "grid h-9 w-9 place-items-center rounded-full border-2 border-dashed border-accent/50 text-sm font-bold text-accent/70 transition-colors hover:border-accent hover:text-accent active:scale-90";
 
   // One tap when the item has a default account; otherwise pick one first.
   if (from) {

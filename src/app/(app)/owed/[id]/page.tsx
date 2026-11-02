@@ -1,3 +1,4 @@
+import Amount from "@/components/Amount";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
@@ -34,10 +35,10 @@ export default async function OwedItemPage({
   return (
     <div className="space-y-6">
       <header>
-        <Link href="/owed" className="text-sm text-muted">‹ Owed to me</Link>
-        <h1 className="mt-1 text-xl font-semibold">{r.who}</h1>
+        <Link href="/owed" className="inline-flex items-center gap-1 text-sm text-muted">‹ Owed to me</Link>
+        <h1 className="mt-1 font-serif text-[1.75rem] leading-tight font-medium">{r.who}</h1>
         {r.description && <p className="text-sm text-muted">{r.description}</p>}
-        <p className="num mt-1 text-3xl font-semibold text-in">{lkr(r.outstanding)}</p>
+        <p className="mt-2 text-[2.25rem] font-medium text-in"><Amount value={r.outstanding} /></p>
         <p className="num text-xs text-muted">
           {RECEIVABLE_STATUS_LABEL[r.shown_status]} · {lkr(r.received)} received of {lkr(r.amount)}
         </p>
@@ -60,8 +61,8 @@ export default async function OwedItemPage({
 
       {(txRes.data ?? []).length > 0 && (
         <section>
-          <h2 className="mb-2 text-sm font-medium text-muted">Received</h2>
-          <ul className="card divide-y divide-line">
+          <h2 className="mb-2 px-1 text-sm font-medium text-muted">Received</h2>
+          <ul className="ledger">
             {(txRes.data as Txn[]).map((t) => <TxnRow key={t.id} t={t} byId={byId} />)}
           </ul>
         </section>

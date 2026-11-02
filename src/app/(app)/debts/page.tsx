@@ -1,3 +1,4 @@
+import Amount from "@/components/Amount";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { loadAccounts, toPlan } from "@/lib/data";
@@ -31,16 +32,16 @@ export default async function DebtsPage({ searchParams }: { searchParams: Promis
   return (
     <div className="space-y-5">
       <header>
-        <Link href="/" className="text-sm text-muted">‹ Home</Link>
-        <h1 className="mt-1 text-xl font-semibold">Debts</h1>
-        <p className="num text-3xl font-semibold text-out">{lkr(-totalOwed)}</p>
+        <Link href="/" className="inline-flex items-center gap-1 text-sm text-muted">‹ Home</Link>
+        <h1 className="mt-1 font-serif text-[1.75rem] leading-tight font-medium">Debts</h1>
+        <p className="mt-2 text-[2.25rem] font-medium text-out"><Amount value={-totalOwed} /></p>
         {totalHeld > 0 && <p className="num text-xs text-muted">{lkr(totalHeld)} of it is instalments, billed month by month</p>}
       </header>
 
       {debtAccounts.length === 0 ? (
         <p className="card p-4 text-sm">No debts. Nice.</p>
       ) : (
-        <ul className="card divide-y divide-line">
+        <ul className="ledger">
           {debtAccounts.map((a) => {
             const d = debts.find((x) => x.id === a.id)!;
             return (
@@ -63,8 +64,8 @@ export default async function DebtsPage({ searchParams }: { searchParams: Promis
 
       {plans.length > 0 && (
         <section>
-          <h2 className="mb-2 text-sm font-medium text-muted">Instalments running</h2>
-          <ul className="card divide-y divide-line text-sm">
+          <h2 className="mb-2 px-1 text-sm font-medium text-muted">Instalments running</h2>
+          <ul className="ledger text-sm">
             {plans.map((p) => (
               <li key={p.id} className="num flex justify-between px-4 py-2.5">
                 <span>{p.name} · {billedCount(p, ym)}/{p.months}</span>
@@ -83,9 +84,9 @@ export default async function DebtsPage({ searchParams }: { searchParams: Promis
               <label className="label" htmlFor="budget">I can put this toward debt each month</label>
               <input id="budget" name="budget" inputMode="decimal" defaultValue={sp.budget ?? ""} placeholder="e.g. 25000" className="field num" required />
             </div>
-            <div className="grid grid-cols-2 gap-1 rounded-xl bg-surface-2 p-1 text-sm">
+            <div className="grid grid-cols-2 gap-1 rounded-xl bg-bg p-1 text-sm">
               {(["avalanche", "snowball"] as const).map((m) => (
-                <label key={m} className="cursor-pointer rounded-lg py-2 text-center font-medium text-muted has-checked:bg-surface has-checked:text-text has-checked:shadow">
+                <label key={m} className="cursor-pointer rounded-lg py-2 text-center font-medium text-muted has-checked:bg-surface-2 has-checked:text-text has-checked:ring-1 has-checked:ring-accent/60">
                   <input type="radio" name="method" value={m} defaultChecked={method === m} className="sr-only" />
                   {m === "avalanche" ? "Highest interest first" : "Smallest first"}
                 </label>
@@ -115,7 +116,7 @@ export default async function DebtsPage({ searchParams }: { searchParams: Promis
               </ul>
               {plan.firstMonth.length > 0 && (
                 <div>
-                  <p className="mb-1 text-xs font-medium uppercase tracking-wide text-muted">Next month, pay</p>
+                  <p className="mb-1 text-xs font-medium text-muted">Next month, pay</p>
                   <ul className="num space-y-1 text-sm">
                     {plan.firstMonth.map((f) => (
                       <li key={f.name} className="flex justify-between">

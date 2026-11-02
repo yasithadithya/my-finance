@@ -66,32 +66,44 @@ export default function TxnForm({
       {initial && <input type="hidden" name="id" value={initial.id} />}
       <input type="hidden" name="kind" value={kind} />
 
-      <div className="grid grid-cols-3 gap-1 rounded-xl bg-surface-2 p-1">
+      <div className="relative grid grid-cols-3 rounded-xl bg-surface p-1" role="radiogroup" aria-label="Type">
+        <span
+          aria-hidden
+          className="absolute inset-y-1 left-1 w-[calc((100%-0.5rem)/3)] rounded-lg bg-surface-2 ring-1 ring-accent/60 transition-transform duration-200 ease-out motion-reduce:transition-none"
+          style={{ transform: `translateX(${KINDS.findIndex((k) => k.value === kind) * 100}%)` }}
+        />
         {KINDS.map((k) => (
           <button
             key={k.value}
             type="button"
+            role="radio"
+            aria-checked={kind === k.value}
             onClick={() => setKind(k.value)}
-            className={`rounded-lg py-2 text-sm font-medium ${kind === k.value ? "bg-surface text-text shadow" : "text-muted"}`}
+            className={`relative rounded-lg py-2 text-sm font-medium transition-colors ${kind === k.value ? "text-text" : "text-muted"}`}
           >
             {k.label}
           </button>
         ))}
       </div>
 
-      <div>
-        <label className="label" htmlFor="amount">Amount (LKR)</label>
-        <input
-          ref={amountRef}
-          id="amount"
-          name="amount"
-          inputMode="decimal"
-          autoComplete="off"
-          placeholder="0.00"
-          defaultValue={initial ? Number(initial.amount).toFixed(2) : ""}
-          className="field num text-3xl font-semibold"
-          required
-        />
+      <div className="py-2">
+        <label className="label" htmlFor="amount">Amount</label>
+        <div className="flex items-baseline gap-3 border-b-2 border-line pb-2 transition-colors focus-within:border-accent">
+          <span className="text-lg font-medium text-muted">Rs</span>
+          <input
+            ref={amountRef}
+            id="amount"
+            name="amount"
+            inputMode="decimal"
+            autoComplete="off"
+            placeholder="0.00"
+            defaultValue={initial ? Number(initial.amount).toFixed(2) : ""}
+            className={`money w-full min-w-0 bg-transparent text-[2.75rem] font-medium outline-none placeholder:text-surface-2 ${
+              kind === "income" ? "text-in" : ""
+            }`}
+            required
+          />
+        </div>
       </div>
 
       {kind !== "income" && (

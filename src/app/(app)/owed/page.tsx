@@ -1,3 +1,4 @@
+import Amount from "@/components/Amount";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { loadReceivables } from "@/lib/reminders";
@@ -18,19 +19,19 @@ export default async function OwedPage() {
   return (
     <div className="space-y-5">
       <header>
-        <Link href="/" className="text-sm text-muted">‹ Home</Link>
+        <Link href="/" className="inline-flex items-center gap-1 text-sm text-muted">‹ Home</Link>
         <div className="mt-1 flex items-center justify-between">
-          <h1 className="text-xl font-semibold">Owed to me</h1>
+          <h1 className="font-serif text-[1.75rem] leading-tight font-medium">Owed to me</h1>
           <Link href="/owed/new" className="btn px-3 py-2 text-sm">+ New</Link>
         </div>
-        <p className="num text-3xl font-semibold text-in">{lkr(confirmed)}</p>
+        <p className="mt-2 text-[2.25rem] font-medium text-in"><Amount value={confirmed} /></p>
         {quoted > 0 && <p className="num text-xs text-muted">+ {lkr(quoted)} quoted, not confirmed</p>}
       </header>
 
       {open.length === 0 ? (
         <p className="text-sm text-muted">Nobody owes you anything right now.</p>
       ) : (
-        <ul className="card divide-y divide-line">
+        <ul className="ledger">
           {open.map((r) => {
             const late = r.expected_date && r.expected_date < today;
             return (
@@ -54,8 +55,8 @@ export default async function OwedPage() {
 
       {done.length > 0 && (
         <section>
-          <h2 className="mb-2 text-sm font-medium text-muted">Paid</h2>
-          <ul className="card divide-y divide-line text-muted">
+          <h2 className="mb-2 px-1 text-sm font-medium text-muted">Paid</h2>
+          <ul className="ledger text-muted">
             {done.map((r) => (
               <li key={r.id}>
                 <Link href={`/owed/${r.id}`} className="flex justify-between px-4 py-3">

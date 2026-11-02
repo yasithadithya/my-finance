@@ -8,6 +8,7 @@ import type { Reconciliation, Txn } from "@/lib/types";
 import { deletePlan, deleteStatement } from "@/app/actions";
 import AccountForm from "@/components/AccountForm";
 import TxnRow from "@/components/TxnRow";
+import Amount from "@/components/Amount";
 import { StatusChip } from "@/components/Reminders";
 import { PlanForm, ReconcileForm, StatementForm } from "@/components/Forms";
 
@@ -56,9 +57,9 @@ export default async function AccountPage({
   return (
     <div className="space-y-6">
       <header>
-        <Link href="/accounts" className="text-sm text-muted">‹ Accounts</Link>
-        <h1 className="mt-1 text-xl font-semibold">{account.name}</h1>
-        <p className={`num text-3xl font-semibold ${account.balance! < 0 ? "text-out" : ""}`}>{lkr(account.balance)}</p>
+        <Link href="/accounts" className="inline-flex items-center gap-1 text-sm text-muted">‹ Accounts</Link>
+        <h1 className="mt-1 font-serif text-[1.75rem] leading-tight font-medium">{account.name}</h1>
+        <p className={`mt-2 text-[2.25rem] font-medium ${account.balance! < 0 ? "text-out" : ""}`}><Amount value={account.balance!} /></p>
         {isCard && account.credit_limit ? (
           <p className="num text-sm text-muted">
             {lkr(account.credit_limit - owed)} available of {lkr(account.credit_limit)}
@@ -73,7 +74,7 @@ export default async function AccountPage({
       </header>
 
       {sp.reconciled && (
-        <p className="rounded-lg bg-surface-2 px-3 py-2 text-sm text-in">Reconciled. The balance now matches your bank.</p>
+        <p className="rounded-xl bg-in/10 px-3.5 py-2.5 text-sm text-in">Reconciled. The balance now matches your bank.</p>
       )}
 
       {sp.edit ? (
@@ -96,7 +97,7 @@ export default async function AccountPage({
 
       {isCard && (
         <section id="statements">
-          <div className="mb-2 flex items-baseline justify-between">
+          <div className="section-head">
             <h2 className="text-sm font-medium text-muted">Statements</h2>
             <Link href={`/accounts/${id}?stmt=new#statements`} className="text-xs text-accent">+ Add past statement</Link>
           </div>
@@ -110,7 +111,7 @@ export default async function AccountPage({
           ) : myStatements.length === 0 ? (
             <p className="text-sm text-muted">The first statement appears on the {ordinal(account.billing_day)}. Add an older one if a bill is still due.</p>
           ) : (
-            <ul className="card divide-y divide-line">
+            <ul className="ledger">
               {myStatements.map((s) => (
                 <li key={s.id} className="px-4 py-3">
                   <div className="flex items-center justify-between gap-3">
@@ -147,7 +148,7 @@ export default async function AccountPage({
 
       {isCard && (
         <section id="plans">
-          <div className="mb-2 flex items-baseline justify-between">
+          <div className="section-head">
             <h2 className="text-sm font-medium text-muted">Instalment plans</h2>
             <Link href={`/accounts/${id}?plan=new#plans`} className="text-xs text-accent">+ Add plan</Link>
           </div>
@@ -159,7 +160,7 @@ export default async function AccountPage({
           {plans.length === 0 ? (
             <p className="text-sm text-muted">None. The bank holds the full amount against the card; a plan tells statements how much is billed each month.</p>
           ) : (
-            <ul className="card divide-y divide-line">
+            <ul className="ledger">
               {plans.map((p) => {
                 const done = billedCount(p, ym);
                 return (
@@ -168,7 +169,7 @@ export default async function AccountPage({
                       <span className="truncate">{p.name}</span>
                       <span className="num shrink-0">{lkr(p.monthly_amount)}/mo</span>
                     </div>
-                    <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-surface-2">
+                    <div className="meter mt-2">
                       <div className="h-full bg-accent" style={{ width: `${Math.round((done / p.months) * 100)}%` }} />
                     </div>
                     <div className="num mt-1.5 flex justify-between text-xs text-muted">
@@ -192,14 +193,14 @@ export default async function AccountPage({
       )}
 
       <section>
-        <div className="mb-2 flex items-baseline justify-between">
+        <div className="section-head">
           <h2 className="text-sm font-medium text-muted">Latest transactions</h2>
           <Link href={`/transactions?account=${id}`} className="text-xs text-accent">By month</Link>
         </div>
         {(txRes.data ?? []).length === 0 ? (
           <p className="text-sm text-muted">No transactions yet.</p>
         ) : (
-          <ul className="card divide-y divide-line">
+          <ul className="ledger">
             {(txRes.data as Txn[]).map((t) => <TxnRow key={t.id} t={t} byId={byId} />)}
           </ul>
         )}
@@ -207,8 +208,8 @@ export default async function AccountPage({
 
       {recs.length > 0 && (
         <section>
-          <h2 className="mb-2 text-sm font-medium text-muted">Reconciled</h2>
-          <ul className="card divide-y divide-line text-sm">
+          <h2 className="mb-2 px-1 text-sm font-medium text-muted">Reconciled</h2>
+          <ul className="ledger text-sm">
             {recs.map((r) => {
               const diff = Number(r.actual_balance) - Number(r.computed_balance);
               return (

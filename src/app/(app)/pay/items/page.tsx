@@ -19,9 +19,9 @@ export default async function ItemsPage() {
   return (
     <div className="space-y-5">
       <header>
-        <Link href="/pay" className="text-sm text-muted">‹ Pay</Link>
+        <Link href="/pay" className="inline-flex items-center gap-1 text-sm text-muted">‹ Pay</Link>
         <div className="mt-1 flex items-center justify-between">
-          <h1 className="text-xl font-semibold">Fixed payments</h1>
+          <h1 className="font-serif text-[1.75rem] leading-tight font-medium">Fixed payments</h1>
           <Link href="/pay/items/new" className="btn px-3 py-2 text-sm">+ New</Link>
         </div>
         <p className="num text-sm text-muted">{lkr(total)} a month</p>
@@ -30,7 +30,7 @@ export default async function ItemsPage() {
       {items.length === 0 ? (
         <p className="text-sm text-muted">Nothing yet.</p>
       ) : (
-        <ul className="card divide-y divide-line">
+        <ul className="ledger">
           {items.map((i) => (
             <li key={i.id}>
               <Link href={`/pay/items/${i.id}`} className={`flex items-center justify-between gap-3 px-4 py-3 ${i.active ? "" : "text-muted"}`}>
