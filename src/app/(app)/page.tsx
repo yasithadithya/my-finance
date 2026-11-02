@@ -50,29 +50,40 @@ export default async function Home() {
     <div className="space-y-6">
       <section className="panel">
         <div className="flex items-baseline justify-between">
-          <h1 className="text-sm font-medium text-muted">{monthLabel(ym)}</h1>
+          <h1 className="text-sm font-medium text-muted">Net position</h1>
           <Link href="/pay" className="text-[13px] text-accent">Pay checklist</Link>
         </div>
-        <p className={`mt-3 text-[2.5rem] font-medium ${left < 0 ? "text-out" : ""}`}>
-          <Amount value={left} />
+        <p className={`mt-3 text-[2.5rem] font-medium ${assets + owed < 0 ? "text-out" : ""}`}>
+          <Amount value={assets + owed} />
         </p>
-        <p className="mt-1 text-sm text-muted">
-          {left < 0 ? "More went out than came in this month" : "Left after bills and spending"}
-        </p>
+        <dl className="num mt-2 flex gap-5 text-sm">
+          <div>
+            <dt className="text-xs text-muted">In accounts</dt>
+            <dd>{lkr(assets)}</dd>
+          </div>
+          <div>
+            <dt className="text-xs text-muted">Owed on cards and loans</dt>
+            <dd className={owed < 0 ? "text-out" : ""}>{lkr(owed)}</dd>
+          </div>
+        </dl>
 
         <div className="mt-6">
           <MonthRunway ym={ym} today={today} bills={statements} fixed={checklist} cards={cards} animate />
         </div>
 
-        <dl className="num mt-5 grid grid-cols-2 gap-x-4 border-t border-line pt-4 text-sm">
-          <Stat label="Money in" value={lkr(moneyIn)} tone="text-in" />
-          <Stat label="Money out" value={lkr(-out)} />
-        </dl>
-        <dl className="num mt-3 grid grid-cols-3 gap-x-3 text-xs">
-          <Stat label="Fixed" value={lkr(fixed)} small />
-          <Stat label="Debts" value={lkr(debt)} small />
-          <Stat label="Other" value={lkr(other)} small />
-        </dl>
+        <div className="mt-5 border-t border-line pt-4">
+          <p className="mb-2 text-xs text-muted">{monthLabel(ym)}</p>
+          <dl className="num grid grid-cols-3 gap-x-3 text-sm">
+            <Stat label="Money in" value={lkr(moneyIn)} tone="text-in" />
+            <Stat label="Money out" value={lkr(-out)} />
+            <Stat label="Left" value={lkr(left)} tone={left < 0 ? "text-out" : ""} />
+          </dl>
+          <dl className="num mt-3 grid grid-cols-3 gap-x-3 text-xs">
+            <Stat label="Fixed" value={lkr(fixed)} small />
+            <Stat label="Debts" value={lkr(debt)} small />
+            <Stat label="Other" value={lkr(other)} small />
+          </dl>
+        </div>
       </section>
 
       <Reminders items={reminders} />
@@ -135,19 +146,6 @@ export default async function Home() {
           </ul>
         )}
       </section>
-
-      {accounts.length > 0 && (
-        <section className="px-1 text-sm">
-          <div className="flex items-baseline justify-between">
-            <span className="text-muted">Net position</span>
-            <span className={`num font-medium ${assets + owed < 0 ? "text-out" : ""}`}>{lkr(assets + owed)}</span>
-          </div>
-          <div className="num mt-1 flex justify-between gap-3 text-xs text-muted">
-            <span>In accounts {lkr(assets)}</span>
-            <span className="text-right">Owed {lkr(-owed)}</span>
-          </div>
-        </section>
-      )}
     </div>
   );
 }
