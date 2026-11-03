@@ -22,7 +22,7 @@ export default function BottomNav() {
   const path = usePathname();
   return (
     <nav
-      className="fixed inset-x-0 bottom-0 z-20 border-t border-line bg-bg"
+      className="fixed inset-x-0 bottom-0 z-20 border-t border-line bg-bg/90 backdrop-blur-md"
       style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
     >
       <ul className="mx-auto grid max-w-md grid-cols-5 px-2">
@@ -35,7 +35,7 @@ export default function BottomNav() {
                   href={it.href}
                   aria-label="Add transaction"
                   aria-current={active ? "page" : undefined}
-                  className="absolute -top-5 grid h-14 w-14 place-items-center rounded-full bg-accent text-on-accent ring-4 ring-bg transition-transform active:scale-95"
+                  className="absolute -top-5 grid h-14 w-14 place-items-center rounded-full bg-accent text-on-accent shadow-[0_10px_30px_-8px_rgba(94,234,212,0.7)] ring-4 ring-bg transition-transform active:scale-95"
                 >
                   <Icon d={it.icon} size={26} />
                 </Link>

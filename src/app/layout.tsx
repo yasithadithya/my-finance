@@ -1,10 +1,10 @@
 import type { Metadata, Viewport } from "next";
-import { Newsreader, Schibsted_Grotesk } from "next/font/google";
+import { JetBrains_Mono, Space_Grotesk } from "next/font/google";
 import "./globals.css";
 import SwRegister from "@/components/SwRegister";
 
-const grotesk = Schibsted_Grotesk({ subsets: ["latin"], variable: "--font-grotesk", display: "swap" });
-const newsreader = Newsreader({ subsets: ["latin"], variable: "--font-newsreader", display: "swap", weight: ["400", "500"] });
+const grotesk = Space_Grotesk({ subsets: ["latin"], variable: "--font-grotesk", display: "swap" });
+const mono = JetBrains_Mono({ subsets: ["latin"], variable: "--font-jbmono", display: "swap", weight: ["400", "500", "600"] });
 
 export const metadata: Metadata = {
   title: "My Expenses",
@@ -14,7 +14,7 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
-  themeColor: "#15122e",
+  themeColor: "#0a0d11",
   width: "device-width",
   initialScale: 1,
   viewportFit: "cover",
@@ -22,7 +22,7 @@ export const viewport: Viewport = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" className={`${grotesk.variable} ${newsreader.variable}`}>
+    <html lang="en" className={`${grotesk.variable} ${mono.variable}`}>
       <body className="antialiased min-h-dvh">
         {children}
         <SwRegister />

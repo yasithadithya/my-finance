@@ -1,18 +1,19 @@
 @import "tailwindcss";
 
-/* Night passbook: indigo ink, brass money, jade in, rose out. */
+/* Direction A, "Dark Obsidian & Mint": near-black surfaces, mint accent,
+   green in, rose out, monospaced figures so money lines up. */
 :root {
-  --bg: #15122e;
-  --surface: #1e1a3b;
-  --surface-2: #2a2550;
-  --line: #342f5e;
-  --text: #eeeaf8;
-  --muted: #a39dc4;
-  --accent: #e6b450;
-  --on-accent: #2a1c00;
-  --in: #5ed3a1;
-  --out: #ff7d8c;
-  --warn: #f59a5b;
+  --bg: #0a0d11;
+  --surface: #11161c;
+  --surface-2: #19212a;
+  --line: #222b36;
+  --text: #e9eef3;
+  --muted: #8794a5;
+  --accent: #5eead4;
+  --on-accent: #04221d;
+  --in: #4ade80;
+  --out: #fb7185;
+  --warn: #fbbf24;
 }
 
 @theme inline {
@@ -28,7 +29,9 @@
   --color-out: var(--out);
   --color-warn: var(--warn);
   --font-sans: var(--font-grotesk), ui-sans-serif, system-ui, sans-serif;
-  --font-serif: var(--font-newsreader), ui-serif, Georgia, serif;
+  /* Headings that used the passbook serif now use the same grotesk, set tighter. */
+  --font-serif: var(--font-grotesk), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-jbmono), ui-monospace, SFMono-Regular, monospace;
 }
 
 html { color-scheme: dark; }
@@ -38,25 +41,27 @@ body {
   font-family: var(--font-sans);
   -webkit-tap-highlight-color: transparent;
 }
-.num { font-variant-numeric: tabular-nums; }
-::selection { background: rgb(230 180 80 / 0.35); }
+.num { font-family: var(--font-mono); font-variant-numeric: tabular-nums; letter-spacing: -0.02em; }
+::selection { background: rgb(94 234 212 / 0.3); }
+.font-serif { letter-spacing: -0.02em; }
 @layer base {
   :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 }
 
 @layer components {
-/* Big money, set like a passbook entry. The "Rs" is small and raised. */
+/* Big money in mono figures. The "Rs" is small and raised. */
 .money {
-  font-family: var(--font-serif);
+  font-family: var(--font-mono);
+  font-weight: 600;
   font-variant-numeric: lining-nums tabular-nums;
-  letter-spacing: -0.02em;
+  letter-spacing: -0.04em;
   line-height: 1.05;
 }
 .money .rs {
   font-family: var(--font-sans);
   font-size: 0.42em;
   font-weight: 500;
-  letter-spacing: 0;
+  letter-spacing: 0.02em;
   color: var(--muted);
   margin-right: 0.35em;
   vertical-align: 0.75em;
@@ -66,18 +71,18 @@ body {
 .field {
   width: 100%;
   background: var(--surface-2);
-  border: 1px solid transparent;
-  border-radius: 0.6rem;
+  border: 1px solid var(--line);
+  border-radius: 0.75rem;
   padding: 0.7rem 0.85rem;
   color: var(--text);
   font-size: 1rem;
   transition: border-color 0.15s;
 }
-.field::placeholder { color: rgb(163 157 196 / 0.55); }
+.field::placeholder { color: rgb(135 148 165 / 0.6); }
 .field:focus { outline: none; border-color: var(--accent); }
 select.field {
   appearance: none;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23a39dc4' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%238794a5' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
   background-repeat: no-repeat;
   background-position: right 0.85rem center;
   padding-right: 2.2rem;
@@ -86,30 +91,38 @@ select.field {
 
 .btn {
   display: inline-flex; align-items: center; justify-content: center; gap: 0.4rem;
-  border-radius: 0.75rem; padding: 0.8rem 1rem; font-weight: 600;
+  border-radius: 0.85rem; padding: 0.8rem 1rem; font-weight: 600;
   background: var(--accent); color: var(--on-accent);
+  box-shadow: 0 8px 24px -14px rgb(94 234 212 / 0.7);
   transition: transform 0.1s, filter 0.15s;
 }
 .btn:active { transform: scale(0.98); filter: brightness(0.94); }
 .btn:disabled { opacity: 0.5; }
-.btn-ghost { background: var(--surface-2); color: var(--text); }
+.btn-ghost { background: var(--surface-2); color: var(--text); border: 1px solid var(--line); box-shadow: none; }
 .btn-icon {
   display: grid; place-items: center; width: 2.5rem; height: 2.5rem; border-radius: 999px;
   color: var(--muted); transition: background 0.15s, color 0.15s;
 }
 .btn-icon:hover, .btn-icon:active { background: var(--surface-2); color: var(--text); }
 
-/* Surfaces: the hero panel, plain cards and grouped ledger lists. No shadows. */
-.panel { position: relative; background: var(--surface); border-radius: 1.5rem; padding: 1.25rem; }
-.card { background: var(--surface); border-radius: 1rem; }
-.ledger { background: var(--surface); border-radius: 1rem; overflow: hidden; }
+/* Surfaces: the hero panel (mint glow), plain cards and grouped ledger lists.
+   Hairline borders instead of shadows. */
+.panel {
+  position: relative; border-radius: 1.4rem; padding: 1.25rem;
+  background:
+    radial-gradient(120% 140% at 100% 0%, rgb(94 234 212 / 0.13), transparent 55%),
+    linear-gradient(180deg, #141b22, #0f141a);
+  border: 1px solid #22313a;
+}
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: 1.1rem; }
+.ledger { background: var(--surface); border: 1px solid var(--line); border-radius: 1.1rem; overflow: hidden; }
 .ledger > * + * { border-top: 1px solid var(--line); }
 .ledger > li > a { transition: background 0.15s; }
 .ledger > li > a:active { background: var(--surface-2); }
 
 .section-head { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 0.5rem; padding-inline: 0.25rem; }
-.section-head h2 { font-size: 0.875rem; font-weight: 500; color: var(--muted); }
-.section-head a { font-size: 0.8125rem; color: var(--accent); }
+.section-head h2 { font-size: 0.95rem; font-weight: 600; color: var(--text); }
+.section-head a { font-family: var(--font-mono); font-size: 0.75rem; color: var(--accent); }
 
 .chip {
   display: inline-flex; align-items: center; flex-shrink: 0;
@@ -117,23 +130,23 @@ select.field {
 }
 
 /* Filter pills (History). */
-.pill { flex-shrink: 0; border-radius: 999px; padding: 0.35rem 0.85rem; font-size: 0.8125rem; background: var(--surface); color: var(--muted); }
-.pill[aria-current="true"] { background: var(--accent); color: var(--on-accent); font-weight: 600; }
+.pill { flex-shrink: 0; border-radius: 999px; padding: 0.4rem 0.9rem; font-size: 0.8125rem; background: var(--surface-2); border: 1px solid var(--line); color: var(--muted); }
+.pill[aria-current="true"] { background: var(--accent); border-color: var(--accent); color: var(--on-accent); font-weight: 600; }
 
 details > summary { list-style: none; }
 details > summary::-webkit-details-marker { display: none; }
 
-/* Brass bars for card use and payoff progress. */
+/* Bars for card use and payoff progress. */
 .meter { height: 0.375rem; border-radius: 999px; background: var(--surface-2); overflow: hidden; }
 .meter > span { display: block; height: 100%; border-radius: inherit; }
 
 }
 
 /* ---------- Month runway ---------- */
-/* One tick per day. Past days are brass, today stands tall, event days are taller. */
+/* One tick per day. Past days are mint, today stands tall, event days are taller. */
 .runway { display: grid; gap: 2px; height: 1.75rem; align-items: end; }
 .runway .day { height: 0.75rem; border-radius: 2px; background: var(--surface-2); transform-origin: bottom; }
-.runway .day.past { background: rgb(230 180 80 / 0.5); }
+.runway .day.past { background: rgb(94 234 212 / 0.45); }
 .runway .day.event { height: 1.125rem; }
 .runway .day.today { height: 1.75rem; background: var(--accent); }
 .runway-marks { position: relative; height: 1.25rem; margin-top: 0.4rem; }
@@ -156,12 +169,12 @@ details > summary::-webkit-details-marker { display: none; }
   to { opacity: 1; transform: none; }
 }
 
-/* Three brass coins drop onto a stack, glint, then lift away together. */
+/* Three mint coins drop onto a stack, glint, then lift away together. */
 .coins { position: relative; width: 56px; height: 60px; }
 .coin {
   position: absolute; left: 6px; width: 44px; height: 15px; border-radius: 50%;
-  background: linear-gradient(180deg, #fbe3a6 0%, var(--accent) 40%, #b9862a 100%);
-  box-shadow: inset 0 -3px 0 #8a6219, inset 0 1px 0 rgb(255 255 255 / 0.5), 0 0 14px rgb(230 180 80 / 0.2);
+  background: linear-gradient(180deg, #c8fbf1 0%, var(--accent) 40%, #1f9e8c 100%);
+  box-shadow: inset 0 -3px 0 #137565, inset 0 1px 0 rgb(255 255 255 / 0.5), 0 0 14px rgb(94 234 212 / 0.2);
   opacity: 0;
   animation: 2.6s cubic-bezier(0.45, 0, 0.55, 1) infinite both;
 }
@@ -170,7 +183,7 @@ details > summary::-webkit-details-marker { display: none; }
 .coin-3 { bottom: 24px; animation-name: coin-3; }
 .coin-shadow {
   position: absolute; left: 4px; bottom: 0; width: 48px; height: 10px; border-radius: 50%;
-  background: radial-gradient(closest-side, rgb(230 180 80 / 0.35), transparent);
+  background: radial-gradient(closest-side, rgb(94 234 212 / 0.3), transparent);
   animation: coin-shadow 2.6s ease-in-out infinite both;
 }
 /* Static stack, used as the mark on the login screen. */
@@ -195,7 +208,7 @@ details > summary::-webkit-details-marker { display: none; }
   44%  { opacity: 1; transform: translateY(0) scale(1.08, 0.78); filter: none; }
   49%  { transform: translateY(-3px) scale(1); }
   52%  { opacity: 1; transform: translateY(0); filter: none; }
-  60%  { filter: brightness(1.35) drop-shadow(0 0 6px rgb(230 180 80 / 0.7)); }
+  60%  { filter: brightness(1.25) drop-shadow(0 0 6px rgb(94 234 212 / 0.7)); }
   68%, 78% { opacity: 1; transform: translateY(0); filter: none; }
   92%, 100% { opacity: 0; transform: translateY(-22px); }
 }
@@ -216,7 +229,7 @@ details > summary::-webkit-details-marker { display: none; }
 .skel { position: relative; overflow: hidden; background: var(--surface-2); border-radius: 0.4rem; }
 .skel::after {
   content: ""; position: absolute; inset: 0; transform: translateX(-100%);
-  background: linear-gradient(90deg, transparent, rgb(238 234 248 / 0.06), transparent);
+  background: linear-gradient(90deg, transparent, rgb(233 238 243 / 0.05), transparent);
   animation: shimmer 1.5s ease-in-out infinite;
 }
 @keyframes shimmer { to { transform: translateX(100%); } }
