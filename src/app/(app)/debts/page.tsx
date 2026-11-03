@@ -1,113 +1,138 @@
+import Amount from "@/components/Amount";
 import Link from "next/link";
-import { CreditCard, HandCoins, Package, ShieldCheck, Target } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
-import { loadCards } from "@/lib/finance";
-import { currentMonth, lkr, monthLabel, shiftMonth } from "@/lib/format";
-import { saveSetting } from "@/app/actions";
+import { loadAccounts, toPlan } from "@/lib/data";
+import { unbilled, billedCount, leftToPay } from "@/lib/statements";
+import { planPayoff, type Debt } from "@/lib/payoff";
+import { currentMonth, lkr, monthLabel } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
 
-export default async function DebtsPage() {
+export default async function DebtsPage({ searchParams }: { searchParams: Promise<{ budget?: string; method?: string }> }) {
+  const sp = await searchParams;
+  const ym = currentMonth();
   const supabase = await createClient();
-  const [{ statuses, accounts }, settingRes] = await Promise.all([
-    loadCards(supabase),
-    supabase.from("settings").select("value").eq("key", "payoff_months").maybeSingle(),
-  ]);
-  const months = Math.max(1, Number(settingRes.data?.value ?? 3));
-  const loans = accounts.filter((a) => a.type === "loan" && a.balance! < 0);
+  const [accounts, plRes] = await Promise.all([loadAccounts(supabase), supabase.from("instalment_plans").select("*")]);
 
-  const rows = [
-    ...statuses.map((s) => ({
-      id: s.card.id, name: s.card.name, Icon: CreditCard,
-      owed: s.owedNow, held: s.held, revolving: Math.max(s.owedNow - s.held, 0),
-    })),
-    ...loans.map((l) => ({ id: l.id, name: l.name, Icon: HandCoins, owed: -l.balance!, held: 0, revolving: -l.balance! })),
-  ].filter((r) => r.owed > 0);
+  const debtAccounts = accounts.filter((a) => (a.type === "credit_card" || a.type === "loan") && a.balance! < 0);
+  const plans = (plRes.data ?? []).map(toPlan).filter((p) => unbilled(p, ym) > 0 && debtAccounts.some((a) => a.id === p.card_account_id));
 
-  const totalOwed = rows.reduce((s, r) => s + r.owed, 0);
-  const held = rows.reduce((s, r) => s + r.held, 0);
-  const toClear = rows.reduce((s, r) => s + r.revolving, 0);
-  const perMonth = toClear / months;
-  const instalmentsPerMonth = statuses.flatMap((s) => s.plans).filter((p) => p.remainingMonths > 0).reduce((s, p) => s + p.plan.monthly_amount, 0);
-  const clearBy = monthLabel(shiftMonth(currentMonth(), months - 1));
+  // A card's debt minus the instalments the bank holds = the part that can carry interest.
+  const debts: Debt[] = debtAccounts.map((a) => {
+    const held = plans.filter((p) => p.card_account_id === a.id).reduce((s, p) => s + unbilled(p, ym), 0);
+    return { id: a.id, name: a.name, balance: Math.max(0, -a.balance! - held), rate: a.interest_rate ?? 0 };
+  });
+  const totalOwed = debtAccounts.reduce((s, a) => s - a.balance!, 0);
+  const totalHeld = plans.reduce((s, p) => s + unbilled(p, ym), 0);
+
+  const budget = Number((sp.budget ?? "").replace(/,/g, ""));
+  const method = sp.method === "snowball" ? "snowball" : "avalanche";
+  const plan = budget > 0 ? planPayoff(debts, plans, budget, method, ym) : null;
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
       <header>
-        <Link href="/more" className="text-sm text-muted">‹ More</Link>
-        <p className="eyebrow mt-1">Debts & payoff</p>
-        <h1 className="text-xl font-semibold">What you owe</h1>
+        <Link href="/" className="inline-flex items-center gap-1 text-sm text-muted">‹ Home</Link>
+        <h1 className="mt-1 font-serif text-[1.75rem] leading-tight font-medium">Debts</h1>
+        <p className="mt-2 text-[2.25rem] font-medium text-out"><Amount value={-totalOwed} /></p>
+        {totalHeld > 0 && <p className="num text-xs text-muted">{lkr(totalHeld)} of it is instalments, billed month by month</p>}
       </header>
 
-      {rows.length === 0 ? (
-        <div className="hero flex items-center gap-3 p-5">
-          <span className="icon-tile text-in"><ShieldCheck size={18} /></span>
-          <div>
-            <p className="font-semibold">Debt-free</p>
-            <p className="text-xs text-muted">No card or loan balances right now.</p>
-          </div>
-        </div>
+      {debtAccounts.length === 0 ? (
+        <p className="card p-4 text-sm">No debts. Nice.</p>
       ) : (
-        <>
-          <section className="hero p-5">
-            <p className="eyebrow">Owed in total</p>
-            <p className="num mt-1 text-[2rem] font-semibold leading-tight text-out">{lkr(totalOwed)}</p>
-            <div className="mt-3 grid grid-cols-2 gap-2.5">
-              <div className="rounded-xl bg-surface-2/80 px-3 py-2.5">
-                <p className="eyebrow">To clear</p>
-                <p className="num mt-0.5 text-sm font-semibold">{lkr(toClear)}</p>
-              </div>
-              <div className="rounded-xl bg-surface-2/80 px-3 py-2.5">
-                <p className="eyebrow">0% instalments</p>
-                <p className="num mt-0.5 text-sm font-semibold">{lkr(held)}</p>
-              </div>
-            </div>
-          </section>
+        <ul className="ledger">
+          {debtAccounts.map((a) => {
+            const d = debts.find((x) => x.id === a.id)!;
+            return (
+              <li key={a.id}>
+                <Link href={`/accounts/${a.id}`} className="flex items-center justify-between gap-3 px-4 py-3">
+                  <span className="min-w-0">
+                    <span className="block truncate">{a.name}</span>
+                    <span className="block truncate text-xs text-muted">
+                      {a.interest_rate ? `${a.interest_rate}% a year` : "No interest rate set"}
+                      {d.balance < -a.balance! - 0.005 && ` · ${lkr(d.balance)} outside instalments`}
+                    </span>
+                  </span>
+                  <span className="num shrink-0 text-out">{lkr(a.balance)}</span>
+                </Link>
+              </li>
+            );
+          })}
+        </ul>
+      )}
 
-          <section className="card p-4">
-            <h2 className="flex items-center gap-2 font-semibold"><Target size={16} className="text-accent" /> Payoff plan</h2>
-            <form action={saveSetting} className="mt-3 flex items-center gap-2.5">
-              <input type="hidden" name="key" value="payoff_months" />
-              <span className="text-sm text-muted">Clear in</span>
-              <input name="value" type="number" min={1} max={36} defaultValue={months} className="field num w-20 py-2 text-center" />
-              <span className="text-sm text-muted">months</span>
-              <button className="btn ml-auto px-3 py-2 text-sm">Update</button>
-            </form>
-            <div className="mt-4 flex items-end justify-between rounded-xl bg-surface-2 px-3.5 py-3">
-              <div>
-                <p className="font-semibold">Pay per month</p>
-                <p className="text-xs text-muted">Cleared by the {clearBy} cycle</p>
-              </div>
-              <p className="num whitespace-nowrap text-xl font-semibold text-accent">{lkr(perMonth)}</p>
-            </div>
-            {instalmentsPerMonth > 0 && (
-              <p className="mt-2.5 flex items-center gap-1.5 text-xs text-muted">
-                <Package size={13} /> Plus {lkr(instalmentsPerMonth)} a month of 0% instalments, which pay down on their own schedule.
-              </p>
-            )}
-            <p className="mt-2 text-[11px] text-faint">Any balance you leave on a card after its due date is charged interest by the bank. The plan doesn&apos;t include that.</p>
-          </section>
+      {plans.length > 0 && (
+        <section>
+          <h2 className="mb-2 px-1 text-sm font-medium text-muted">Instalments running</h2>
+          <ul className="ledger text-sm">
+            {plans.map((p) => (
+              <li key={p.id} className="num flex justify-between px-4 py-2.5">
+                <span>{p.name} · {billedCount(p, ym)}/{p.months}</span>
+                <span>{lkr(p.monthly_amount)}/mo · {lkr(leftToPay(p, ym))} left</span>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
 
-          <section>
-            <h2 className="mb-2.5 px-0.5 font-semibold">By account</h2>
-            <ul className="card divide-y divide-line overflow-hidden">
-              {rows.map((r) => (
-                <li key={r.id}>
-                  <Link href={`/accounts/${r.id}`} className="flex items-center gap-3 px-3.5 py-3">
-                    <span className="icon-tile text-accent"><r.Icon size={16} /></span>
-                    <div className="min-w-0 flex-1">
-                      <p className="font-medium">{r.name}</p>
-                      <p className="num text-[11px] text-faint">
-                        {r.held > 0 ? `${lkr(r.revolving)} to clear + ${lkr(r.held)} instalments` : `${Math.round((r.owed / totalOwed) * 100)}% of what you owe`}
-                      </p>
-                    </div>
-                    <span className="num font-semibold text-out">{lkr(r.owed)}</span>
-                  </Link>
-                </li>
+      {debtAccounts.length > 0 && (
+        <section className="card p-4">
+          <h2 className="mb-3 font-medium">Payoff planner</h2>
+          <form className="space-y-3">
+            <div>
+              <label className="label" htmlFor="budget">I can put this toward debt each month</label>
+              <input id="budget" name="budget" inputMode="decimal" defaultValue={sp.budget ?? ""} placeholder="e.g. 25000" className="field num" required />
+            </div>
+            <div className="grid grid-cols-2 gap-1 rounded-xl bg-bg p-1 text-sm">
+              {(["avalanche", "snowball"] as const).map((m) => (
+                <label key={m} className="cursor-pointer rounded-lg py-2 text-center font-medium text-muted has-checked:bg-surface-2 has-checked:text-text has-checked:ring-1 has-checked:ring-accent/60">
+                  <input type="radio" name="method" value={m} defaultChecked={method === m} className="sr-only" />
+                  {m === "avalanche" ? "Highest interest first" : "Smallest first"}
+                </label>
               ))}
-            </ul>
-          </section>
-        </>
+            </div>
+            <button className="btn w-full">Plan it</button>
+          </form>
+
+          {plan && (
+            <div className="mt-4 space-y-3 border-t border-line pt-4">
+              {plan.ok ? (
+                <p>
+                  Debt-free in <strong>{plan.months} month{plan.months === 1 ? "" : "s"}</strong>, by{" "}
+                  <strong>{monthLabel(plan.debtFree!)}</strong>.
+                </p>
+              ) : (
+                <p className="text-out">That budget doesn&apos;t clear the debt. Interest or instalments grow faster than you pay. Try a bigger amount.</p>
+              )}
+              <p className="num text-sm text-muted">Interest along the way: {lkr(plan.totalInterest)}</p>
+              <ul className="divide-y divide-line text-sm">
+                {plan.cleared.map((c) => (
+                  <li key={c.id} className="num flex justify-between py-2">
+                    <span>{c.name}</span>
+                    <span className="text-muted">{c.month ? `paid off ${monthLabel(c.month)}` : "not cleared"}</span>
+                  </li>
+                ))}
+              </ul>
+              {plan.firstMonth.length > 0 && (
+                <div>
+                  <p className="mb-1 text-xs font-medium text-muted">Next month, pay</p>
+                  <ul className="num space-y-1 text-sm">
+                    {plan.firstMonth.map((f) => (
+                      <li key={f.name} className="flex justify-between">
+                        <span>{f.name}</span>
+                        <span>{lkr(f.pay)}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+              {debts.some((d) => !d.rate && d.balance > 0) && (
+                <p className="text-xs text-muted">Debts without an interest rate are treated as 0%. Set rates on the account (Edit account).</p>
+              )}
+            </div>
+          )}
+        </section>
       )}
     </div>
   );

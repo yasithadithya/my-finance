@@ -4,14 +4,14 @@ A personal finance PWA for one user. It tracks bank accounts, credit cards, cash
 
 Stack: Next.js 15 (App Router, TypeScript, Tailwind) and Supabase (Postgres + Auth). Both run on free tiers, hosted on Vercel.
 
-## Status: all phases built
+## Status
 
-- **Phase 1**: login, accounts, quick add (expense / income / transfer), history by pay cycle with search, home dashboard, installable PWA.
-- **Phase 2**: card statements (closing on the 15th, due on the 5th), worked out from the ledger. Also: instalment plans, the **Pay** checklist with the D tick, and reminder banners on Home.
-- **Phase 3**: debts and payoff plan, money owed to me (with part payments), and reconciling against your bank.
-- **Phase 4**: push notifications through a daily Vercel cron (which also keeps Supabase awake), CSV export, and weekly GitHub backups.
+- **Phase 0 + 1 (done)**: login, accounts, quick add (expense / income / transfer), history by month and account, home dashboard, installable PWA.
+- **Phase 2 (done)**: card statements on the billing day, due-date tracking, instalment billing, the **Pay** tab ("Pay this month" checklist with the D tick), reminder banners on Home.
+- **Phase 3 (done)**: Debts page with a payoff planner, money owed to me, reconcile.
+- **Phase 4 (done)**: push notifications (a daily reminder job).
 
-**Database scripts, run in order in the Supabase SQL Editor:** `0001_schema.sql` → `seed.sql` → `0002_pay_cycle.sql` → `0003_phases_2_4.sql`.
+The schema is in `supabase/migrations/0001_schema.sql`, plus `0002_push.sql` for push notifications `0003_instalments.sql` for converting purchases to instalments, and `0004_instalment_marks.sql` for marking instalments paid (run each once in the SQL Editor).
 
 ## Setup (about 15 minutes)
 
@@ -42,36 +42,29 @@ The seed sets the cards from your available credit on 2 Nov (BOC owes 7,737.34, 
 2. In Vercel, click **Add New → Project**, import the repo, and add the two `NEXT_PUBLIC_SUPABASE_*` variables.
 3. On your S25 Ultra, open the Vercel URL in Chrome, then tap **⋮ → Add to home screen → Install**.
 
-### 5. Turn on reminders, export and backups (Phase 4)
+### 5. Turn on push reminders (Phase 4)
 
-1. **Push keys.** On your laptop, run `npx web-push generate-vapid-keys`. It prints a public and a private key.
-2. **Vercel env vars** (Settings → Environment Variables), then redeploy:
-    - `NEXT_PUBLIC_VAPID_PUBLIC_KEY` = the public key
-    - `VAPID_PRIVATE_KEY` = the private key
-    - `VAPID_SUBJECT` = `mailto:` followed by your email
-    - `SUPABASE_SERVICE_ROLE_KEY` = from Supabase → Project Settings → API. Keep it secret, and never add the `NEXT_PUBLIC_` prefix to it.
-    - `CRON_SECRET` = any long random string
-3. **On your phone:** open the installed app, go to **More → Payment reminders → Turn on**, then tap **Test**.
-4. **What the daily job does.** `vercel.json` runs it every day at about 8:00 am Sri Lanka time. Each day it:
-    - pings the database, so the free Supabase project never pauses
-    - sends push reminders: the statement closing on the 15th/16th, the five days before the 5th, overdue payments, and unticked fixed payments near payday
-5. **Backups.** In your GitHub repo, add the secret `SUPABASE_DB_URL` (Supabase → Project Settings → Database → Session pooler connection string, with your password filled in). `.github/workflows/backup.yml` then saves a dump every week and keeps 90 days. Run it once by hand from the Actions tab to check it works.
-6. **Export.** **More → Export transactions** downloads a CSV of every transaction.
+1. In Supabase **SQL Editor**, run `supabase/migrations/0002_push.sql`.
+2. Make push keys: `npx web-push generate-vapid-keys`.
+3. Add these to `.env.local` **and** to Vercel → Project → Settings → Environment Variables (see `.env.example`):
+   - `NEXT_PUBLIC_VAPID_PUBLIC_KEY` and `VAPID_PRIVATE_KEY`: the two keys from step 2.
+   - `VAPID_SUBJECT`: `mailto:` plus your email.
+   - `SUPABASE_SERVICE_ROLE_KEY`: Supabase → Project Settings → API → `service_role`. Keep it secret; only the daily job uses it.
+   - `CRON_SECRET`: any long random string.
+4. Redeploy. `vercel.json` runs `/api/cron/reminders` every day at 02:30 UTC (8:00 am in Sri Lanka).
+5. On your phone, open the installed app → **Accounts → Reminders on this phone → Turn on**, then tap **Send a test notification**.
 
-## Credit cards: how dues are worked out
+## Using it
 
-- **What's due on the 5th** = what you owed when the statement closed on the 15th, minus the 0% instalments the bank is still holding, minus anything you've paid into the card since the 15th.
-- **The 15 Oct statement closed before you started tracking.** The Cards screen asks you to type that amount once. After that, every statement is calculated automatically.
-- **If the bank's figure differs** (interest or fees), use "Statement amount different?" on the Cards screen to override it.
-
-## Pay cycles (the app's "month")
-
-Every month in the app is a **pay cycle** that starts on salary day, the 30th. Each cycle is named after the month it ends in, so "November 2026" runs from 30 Oct to 29 Nov. In February the cycle starts on the last day of the month (28th or 29th).
-
-- If salary arrives early (say on the 28th, because the 30th is a holiday), set that transaction's date to the 30th so it counts in the new cycle.
-- The start day is `CYCLE_START_DAY` in `src/lib/format.ts`.
-- Choosing Income on the Add screen fills in Com Bank as the account automatically.
-- If you already ran `0001_schema.sql`, also run `supabase/migrations/0002_pay_cycle.sql`. It removes the old calendar-month view.
+- **Pay tab**: everything to pay this month. Card bills appear on their statement day. Tap **D** to tick a fixed payment. If the payment has a "usually paid with" account, one tap records the expense. If not, pick the account first (or "Just tick"). Tap the filled **D** to undo.
+- **Card statements**: amount = what you owed at the end of the statement day, minus instalments the bank holds but hasn't billed yet. Money paid into the card after the statement day counts toward that bill. To correct an amount, use **Correct amount** on the card page. **Reset to auto** goes back to the worked-out figure.
+- **The October bill**: the app starts on 2 Nov, so it can't work out the 15 Oct statement (due 5 Nov). On each card page, tap **+ Add past statement** and enter what's still due.
+- **Reconcile**: on any account, enter what your bank shows (for cards, the available credit). Any difference is booked as an adjustment.
+- **Instalments**: open a credit card purchase (History → tap it) → **Convert to instalments**. Enter the months, the interest rate (0 for interest-free), and optionally the monthly amount your bank quoted. The card debt stays as it is. Each statement bills one instalment, Home counts only that month's instalment (not the full price), and the Pay tab lists it as a payment for that month until the plan ends. **Undo conversion** removes the plan.
+- **Marking an instalment paid**: Pay tab → **Instalments** → tap **D** on the row. Pick the bank account to record the payment into the card (it also counts toward that card's bill), or **Just tick** if you paid it as part of the full card bill. Paying the whole card bill marks its instalments paid automatically. Tap the filled **D** to undo.
+- **Home**: the top figure is the total in your bank accounts, with cash and savings, card and loan debt, and net position below it. **Month by month** compares money in, out and left with earlier months.
+- **Debts**: set an interest rate on each card or loan (Edit account), then enter a monthly budget in the payoff planner.
+- **Owed to me**: tap an item → **Record money received**. Partly paid and paid are set for you.
 
 ## How the money works
 
@@ -81,18 +74,24 @@ Every month in the app is a **pay cycle** that starts on salary day, the 30th. E
   - Transfer: both. For example, a card payment is From Com Bank, To BOC CC.
 - A credit card or loan balance below zero is money you owe.
 - Transfers are never counted as spending. Transfers into a card or loan show up as **Debt payments**.
-- The bank already holds the full remaining instalment amount against your card. So the Galaxy Buds plan never adds debt; in Phase 2 it only tells the statement how much is billed each cycle.
+- The bank already holds the full remaining instalment amount against your card. So the Galaxy Buds plan never adds debt; it only tells the statement how much is billed each cycle.
+- Plans with interest: the price is already on the card, but interest is charged month by month. The app books each month's interest on the card on the statement day (note "… interest (2/6)"), so the bill and the debt match the bank. Change the plan to change those charges.
 
 ## Project layout
 
 ```
-src/app/(app)/         Home, Add, Transactions, Accounts (behind login)
-src/app/login/         Sign-in page
-src/app/actions.ts     All server actions (create/update/delete)
-src/app/manifest.ts    PWA manifest
-src/components/        TxnForm, AccountForm, TxnRow, BottomNav
-src/lib/               Supabase client, data helpers, formatting, types
-src/middleware.ts      Session refresh + redirect to /login
-public/sw.js           Service worker (installable; push comes in Phase 4)
-supabase/              Schema migration + day-one seed
+src/app/(app)/             Home, Pay, Add, History, Accounts, Debts, Owed (behind login)
+src/app/api/cron/          Daily reminder job (push notifications)
+src/app/login/             Sign-in page
+src/app/actions.ts         All server actions (create/update/delete)
+src/app/manifest.ts        PWA manifest
+src/components/            Forms, TxnRow, Reminders, PushToggle, BottomNav
+src/lib/statements.ts      Statement generation, instalment billing, payments per bill
+src/lib/reminders.ts       Checklist, receivables and reminder rules (banners + push)
+src/lib/payoff.ts          Debt payoff simulation
+src/lib/                   Supabase clients, data helpers, formatting, types
+src/middleware.ts          Session refresh + redirect to /login
+public/sw.js               Service worker (installable + push)
+supabase/                  Schema migrations + day-one seed
+vercel.json                Cron schedule
 ```
