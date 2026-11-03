@@ -45,6 +45,8 @@ export default async function Home() {
   for (const s of statements) if (!latestBill.has(s.account_id)) latestBill.set(s.account_id, s); // newest first
 
   const cards = accounts.filter((a) => a.type === "credit_card");
+  const assets = accounts.filter((a) => !isDebtType(a.type)).reduce((t, a) => t + a.balance!, 0);
+  const owed = accounts.filter((a) => isDebtType(a.type)).reduce((t, a) => t + Math.min(a.balance!, 0), 0); // ≤ 0
   const fixedLeft = checklist.filter((i) => !i.mark).reduce((t, i) => t + i.amount, 0);
 
   // ---- What you can spend right now
@@ -65,6 +67,8 @@ export default async function Home() {
     .filter((c) => c.now > 0 || c.later > 0);
   const cardsDue = cardsNow.reduce((t, c) => t + c.now, 0);
   const canSpend = round2(spendable - cardsDue - fixedLeft);
+  // Net position counts all debt in full (later instalments too) and fixed payments still to pay.
+  const net = round2(assets + owed - fixedLeft);
   const byId = new Map(accounts.map((a) => [a.id, a]));
   const dueInstalments = instalmentsDueIn(ym, plans, cards, statements, marks);
 
@@ -76,7 +80,12 @@ export default async function Home() {
           <Amount value={canSpend} />
         </p>
 
-        <details className="mt-1 text-sm">
+        <Link href="/debts" className="num mt-1 flex items-baseline gap-2 text-sm">
+          <span className="text-muted">Net position</span>
+          <span className={`font-medium ${net < 0 ? "text-out" : ""}`}>{lkr(net)}</span>
+        </Link>
+
+        <details className="mt-2 text-sm">
           <summary className="cursor-pointer text-xs text-muted">How?</summary>
           <dl className="num mt-2 space-y-1.5">
             <Line label="Accounts" value={spendable} />
