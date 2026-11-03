@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useState } from "react";
 import {
   receivePayment,
   reconcile,
@@ -67,36 +67,74 @@ export function RecurringForm({ initial, accounts }: { initial?: RecurringItem; 
 
 // ------------------------------------------------------------------ instalment plan
 
-export function PlanForm({ cardId, initial, thisMonth }: { cardId: string; initial?: InstalmentPlan; thisMonth: string }) {
+const nf = new Intl.NumberFormat("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const toNum = (v: string) => Number(v.replace(/,/g, ""));
+
+export function PlanForm({
+  cardId,
+  initial,
+  thisMonth,
+  purchase,
+}: {
+  cardId: string;
+  initial?: InstalmentPlan;
+  thisMonth: string;
+  /** Converting an existing card purchase: pre-fills the name, price and first statement. */
+  purchase?: { id: string; name: string; amount: number; firstMonth: string };
+}) {
   const [state, action, pending] = useActionState(savePlan, undefined);
+  const [total, setTotal] = useState(String(initial?.total_price ?? purchase?.amount ?? ""));
+  const [months, setMonths] = useState(String(initial?.months ?? ""));
+  const [rate, setRate] = useState(String(initial?.interest_rate ?? 0));
+  const [monthly, setMonthly] = useState(initial ? String(initial.monthly_amount) : "");
+
+  // Preview of what each month will be.
+  const p = toNum(total), n = parseInt(months, 10), r = toNum(rate) || 0;
+  let each = monthly.trim() ? toNum(monthly) : NaN;
+  if (!monthly.trim() && p > 0 && n > 0) each = r > 0 ? (p * (r / 1200)) / (1 - Math.pow(1 + r / 1200, -n)) : p / n;
+  const preview = p > 0 && n > 0 && each > 0
+    ? `${n} × Rs ${nf.format(each)}${r > 0 ? ` · Rs ${nf.format(Math.max(0, each * n - p))} interest` : " · no interest"}`
+    : null;
+
   return (
     <form action={action} className="space-y-3">
       <input type="hidden" name="card_account_id" value={cardId} />
       {initial && <input type="hidden" name="id" value={initial.id} />}
+      {purchase && <input type="hidden" name="purchase_txn_id" value={purchase.id} />}
       <div>
         <label className="label" htmlFor="plan_name">What you bought</label>
-        <input id="plan_name" name="name" defaultValue={initial?.name} placeholder="e.g. Galaxy Buds" className="field" required />
+        <input id="plan_name" name="name" defaultValue={initial?.name ?? purchase?.name} placeholder="e.g. Galaxy Buds" className="field" required />
       </div>
-      <div className="grid grid-cols-3 gap-3">
+      <div className="grid grid-cols-2 gap-3">
         <div>
-          <label className="label" htmlFor="total_price">Total</label>
-          <input id="total_price" name="total_price" inputMode="decimal" defaultValue={initial?.total_price ?? ""} className="field num" required />
+          <label className="label" htmlFor="total_price">Price</label>
+          <input id="total_price" name="total_price" inputMode="decimal" value={total} onChange={(e) => setTotal(e.target.value)} className="field num" required />
         </div>
         <div>
           <label className="label" htmlFor="months">Months</label>
-          <input id="months" name="months" inputMode="numeric" defaultValue={initial?.months ?? ""} className="field num" required />
+          <input id="months" name="months" inputMode="numeric" value={months} onChange={(e) => setMonths(e.target.value)} placeholder="e.g. 6" className="field num" required />
+        </div>
+        <div>
+          <label className="label" htmlFor="interest_rate">Interest (% a year)</label>
+          <input id="interest_rate" name="interest_rate" inputMode="decimal" value={rate} onChange={(e) => setRate(e.target.value)} className="field num" />
         </div>
         <div>
           <label className="label" htmlFor="monthly_amount">Monthly</label>
-          <input id="monthly_amount" name="monthly_amount" inputMode="decimal" defaultValue={initial?.monthly_amount ?? ""} placeholder="auto" className="field num" />
+          <input id="monthly_amount" name="monthly_amount" inputMode="decimal" value={monthly} onChange={(e) => setMonthly(e.target.value)} placeholder="auto" className="field num" />
         </div>
       </div>
+      <p className="text-xs text-muted">
+        0% for interest-free plans. Leave Monthly empty to work it out, or enter the amount your bank quoted.
+      </p>
       <div>
         <label className="label" htmlFor="first_billing_month">First billed on the statement of</label>
-        <input id="first_billing_month" name="first_billing_month" type="month" defaultValue={initial?.first_billing_month.slice(0, 7) ?? thisMonth} className="field" required />
+        <input id="first_billing_month" name="first_billing_month" type="month" defaultValue={initial?.first_billing_month.slice(0, 7) ?? purchase?.firstMonth ?? thisMonth} className="field" required />
       </div>
+      {preview && <p className="num rounded-xl bg-surface-2 px-3.5 py-2.5 text-sm">{preview}</p>}
       <Err state={state} />
-      <button className="btn w-full" disabled={pending}>{pending ? "Saving…" : initial ? "Save plan" : "Add plan"}</button>
+      <button className="btn w-full" disabled={pending}>
+        {pending ? "Saving…" : initial ? "Save plan" : purchase ? "Convert to instalments" : "Add plan"}
+      </button>
     </form>
   );
 }

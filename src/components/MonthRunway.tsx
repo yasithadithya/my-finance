@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { dayIn, daysInMonth, lkr, shortDate } from "@/lib/format";
-import type { StatementView } from "@/lib/statements";
+import type { InstalmentDue, StatementView } from "@/lib/statements";
 import type { ChecklistItem } from "@/lib/reminders";
 import type { Account } from "@/lib/types";
 
@@ -23,6 +23,7 @@ export default function MonthRunway({
   bills,
   fixed,
   cards = [],
+  instalments = [],
   animate = false,
 }: {
   ym: string;
@@ -31,6 +32,8 @@ export default function MonthRunway({
   fixed: ChecklistItem[];
   /** Credit cards: their statement day is marked with a hollow diamond. */
   cards?: Pick<Account, "name" | "billing_day">[];
+  /** Instalments due this month (those already on a bill are shown with the bill). */
+  instalments?: InstalmentDue[];
   animate?: boolean;
 }) {
   const n = daysInMonth(ym);
@@ -43,6 +46,11 @@ export default function MonthRunway({
     const done = b.status === "paid";
     const tone: Tone = done ? "in" : b.status === "overdue" ? "out" : b.days_left <= 7 ? "warn" : "muted";
     events.push({ date: b.due_date, label: `${b.card_name} bill`, amount: done ? b.statement_balance : b.remaining, kind: "bill", tone, done });
+  }
+  for (const i of instalments) {
+    if (i.bill || !i.due_date || i.due_date < first || i.due_date > last) continue;
+    const tone: Tone = i.due_date < today ? "out" : "muted";
+    events.push({ date: i.due_date, label: `${i.plan.name} instalment`, amount: i.amount, kind: "bill", tone, done: false });
   }
   for (const i of fixed) {
     if (!i.due_day) continue;

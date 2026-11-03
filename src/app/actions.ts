@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { addDays, dayIn, monthRange, round2, shiftMonth, todayColombo } from "@/lib/format";
 import { sendToSubscriptions, type PushSub } from "@/lib/push";
+import { monthlyWithInterest } from "@/lib/statements";
 import type { AccountType, TxnKind } from "@/lib/types";
 
 export type FormState = { error?: string } | undefined;
@@ -99,6 +100,9 @@ export async function deleteTxn(fd: FormData) {
   const id = str(fd, "id");
   const month = str(fd, "month");
   const supabase = await createClient();
+  // A converted purchase takes its plan with it (the database cascades); remove the plan's interest charges too.
+  const { data: plans } = await supabase.from("instalment_plans").select("id").eq("purchase_txn_id", id!);
+  await deletePlanCharges(supabase, (plans ?? []).map((p) => p.id));
   await supabase.from("transactions").delete().eq("id", id!);
   revalidateAll();
   redirect(month ? `/transactions?month=${month}` : "/transactions");
@@ -305,21 +309,36 @@ export async function deleteStatement(fd: FormData) {
 
 // ------------------------------------------------------------------ instalment plans
 
+/**
+ * Add or edit an instalment plan. With `purchase_txn_id`, this converts that
+ * card purchase: the debt stays on the card as it is, and from then on each
+ * month only counts (and bills) its instalment.
+ */
 export async function savePlan(_: FormState, fd: FormData): Promise<FormState> {
   const id = str(fd, "id");
   const card = str(fd, "card_account_id");
+  const purchase = str(fd, "purchase_txn_id");
   const name = str(fd, "name");
   const total = money(fd, "total_price");
   const months = int(fd, "months");
+  const rate = money(fd, "interest_rate") ?? 0;
   let monthly = money(fd, "monthly_amount");
   const first = str(fd, "first_billing_month");
   if (!card) return { error: "Missing card." };
   if (!name) return { error: "Give the plan a name." };
   if (total === null || Number.isNaN(total) || total <= 0) return { error: "Enter the total price." };
-  if (months === null || Number.isNaN(months) || months < 1) return { error: "Enter the number of months." };
+  if (months === null || Number.isNaN(months) || months < 1 || months > 120) return { error: "Enter the number of months (1–120)." };
+  if (Number.isNaN(rate) || rate < 0 || rate > 100) return { error: "Interest must be between 0 and 100% a year." };
   if (!isYm(first)) return { error: "Pick the month of the first instalment." };
-  if (monthly === null) monthly = round2(total / months);
+  if (monthly === null) monthly = monthlyWithInterest(total, months, rate);
   if (Number.isNaN(monthly) || monthly <= 0) return { error: "Monthly amount must be above 0." };
+  if (rate > 0 && monthly * months < total) return { error: "With interest, the monthly amount × months can't be less than the price." };
+
+  const supabase = await createClient();
+  if (purchase && !id) {
+    const { data: t } = await supabase.from("transactions").select("kind,from_account_id").eq("id", purchase).maybeSingle();
+    if (!t || t.kind !== "expense" || t.from_account_id !== card) return { error: "Only a purchase made on this card can be converted." };
+  }
   const row = {
     card_account_id: card,
     name,
@@ -327,22 +346,29 @@ export async function savePlan(_: FormState, fd: FormData): Promise<FormState> {
     months,
     monthly_amount: monthly,
     first_billing_month: monthRange(first).start,
-    interest_rate: money(fd, "interest_rate") ?? 0,
+    interest_rate: rate,
   };
-  const supabase = await createClient();
   const { error } = id
     ? await supabase.from("instalment_plans").update(row).eq("id", id)
-    : await supabase.from("instalment_plans").insert(row);
-  if (error) return { error: error.message };
+    : await supabase.from("instalment_plans").insert({ ...row, purchase_txn_id: purchase });
+  if (error) return { error: error.code === "23505" ? "This purchase is already on an instalment plan." : error.message };
   revalidateAll();
-  redirect(`/accounts/${card}`);
+  redirect(purchase ? `/transactions/${purchase}` : `/accounts/${card}#plans`);
+}
+
+/** Interest charges the app booked for a plan; they go when the plan goes. */
+async function deletePlanCharges(supabase: Awaited<ReturnType<typeof createClient>>, planIds: string[]) {
+  if (planIds.length) await supabase.from("transactions").delete().in("instalment_plan_id", planIds);
 }
 
 export async function deletePlan(fd: FormData) {
+  const id = str(fd, "id")!;
   const supabase = await createClient();
-  await supabase.from("instalment_plans").delete().eq("id", str(fd, "id")!);
+  await deletePlanCharges(supabase, [id]);
+  await supabase.from("instalment_plans").delete().eq("id", id);
   revalidateAll();
-  redirect(`/accounts/${str(fd, "card_account_id")}`);
+  const back = str(fd, "back");
+  redirect(back?.startsWith("/") ? back : `/accounts/${str(fd, "card_account_id")}#plans`);
 }
 
 // ------------------------------------------------------------------ money owed to me

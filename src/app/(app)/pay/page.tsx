@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
-import { loadAccounts } from "@/lib/data";
-import { ensureStatements, type StatementView } from "@/lib/statements";
+import { loadAccounts, loadPlans } from "@/lib/data";
+import { ensureStatements, instalmentsDueIn, type InstalmentDue, type StatementView } from "@/lib/statements";
 import { loadChecklist, type ChecklistItem } from "@/lib/reminders";
 import { currentMonth, dayIn, lkr, monthLabel, monthRange, ordinal, shiftMonth, shortDate, todayColombo } from "@/lib/format";
 import { isDebtType, type Account } from "@/lib/types";
@@ -22,7 +22,11 @@ export default async function PayPage({ searchParams }: { searchParams: Promise<
 
   const supabase = await createClient();
   const accounts = await loadAccounts(supabase);
-  const [statements, checklist] = await Promise.all([ensureStatements(supabase, accounts, today), loadChecklist(supabase, ym)]);
+  const [statements, checklist, plans] = await Promise.all([
+    ensureStatements(supabase, accounts, today),
+    loadChecklist(supabase, ym),
+    loadPlans(supabase),
+  ]);
 
   // This month: every unpaid bill plus the ones due this month. Other months: bills due in that month.
   const bills = statements
@@ -37,6 +41,11 @@ export default async function PayPage({ searchParams }: { searchParams: Promise<
   const fixedDone = checklist.filter((i) => i.mark).reduce((s, i) => s + i.amount, 0);
   const billsLeft = bills.reduce((s, b) => s + b.remaining, 0);
 
+  // Instalments due this month. Once the statement is out the instalment is part
+  // of that card bill; before that (and for future months) it's counted here.
+  const instalments = instalmentsDueIn(ym, plans, cards, statements);
+  const instalmentsLeft = instalments.filter((i) => !i.bill).reduce((s, i) => s + i.amount, 0);
+
   return (
     <div className="space-y-5">
       <MonthNav label={monthLabel(ym)} prev={`/pay?month=${shiftMonth(ym, -1)}`} next={`/pay?month=${shiftMonth(ym, 1)}`} />
@@ -44,17 +53,28 @@ export default async function PayPage({ searchParams }: { searchParams: Promise<
       <section className="panel">
         <p className="text-sm text-muted">Still to pay</p>
         <p className="mt-2 text-[2.25rem] font-medium">
-          <Amount value={fixedLeft + billsLeft} />
+          <Amount value={fixedLeft + billsLeft + instalmentsLeft} />
         </p>
         <div className="mt-5">
-          <MonthRunway ym={ym} today={today} bills={statements} fixed={checklist} cards={accounts.filter((a) => a.type === "credit_card")} />
+          <MonthRunway ym={ym} today={today} bills={statements} fixed={checklist} cards={cards} instalments={instalments} />
         </div>
-        <dl className="num mt-4 grid grid-cols-3 gap-3 border-t border-line pt-4 text-sm">
+        <dl className="num mt-4 grid grid-cols-2 gap-3 border-t border-line pt-4 text-sm">
           <div className="min-w-0"><dt className="text-xs text-muted">Card bills</dt><dd className="truncate">{lkr(billsLeft)}</dd></div>
+          <div className="min-w-0"><dt className="text-xs text-muted">Instalments not billed yet</dt><dd className="truncate">{lkr(instalmentsLeft)}</dd></div>
           <div className="min-w-0"><dt className="text-xs text-muted">Fixed</dt><dd className="truncate">{lkr(fixedLeft)}</dd></div>
           <div className="min-w-0"><dt className="text-xs text-muted">Ticked</dt><dd className="truncate text-in">{lkr(fixedDone)}</dd></div>
         </dl>
       </section>
+
+      {instalments.length > 0 && (
+        <section>
+          <div className="section-head"><h2>Instalments</h2></div>
+          <ul className="ledger">
+            {instalments.map((i) => <InstalmentRow key={`${i.plan.id}-${i.statement_date}`} i={i} today={today} />)}
+          </ul>
+          <p className="mt-2 px-1 text-xs text-muted">Must be paid each month until the plan ends. Once the statement is out, the instalment is part of that card bill.</p>
+        </section>
+      )}
 
       <section>
         <div className="section-head"><h2>Card bills</h2></div>
@@ -98,6 +118,31 @@ export default async function PayPage({ searchParams }: { searchParams: Promise<
 
 function AccountOptions({ list }: { list: Account[] }) {
   return <>{list.map((a) => <option key={a.id} value={a.id}>{a.name} · {lkr(a.balance)}</option>)}</>;
+}
+
+function InstalmentRow({ i, today }: { i: InstalmentDue; today: string }) {
+  const left = i.plan.months - i.no;
+  const late = !i.bill && i.due_date !== null && i.due_date < today;
+  return (
+    <li>
+      <Link href={`/accounts/${i.card.id}#plans`} className="flex items-center justify-between gap-3 px-4 py-3">
+        <span className="min-w-0">
+          <span className="block truncate font-medium">{i.plan.name}</span>
+          <span className="block truncate text-xs text-muted">
+            {i.no} of {i.plan.months} · {i.card.name}
+            {i.bill
+              ? `, on the ${shortDate(i.statement_date)} bill`
+              : `, billed ${shortDate(i.statement_date)}${i.due_date ? `, due ${shortDate(i.due_date)}` : ""}`}
+            {left === 0 ? " · last one" : ` · ${left} more after this`}
+          </span>
+        </span>
+        <span className="flex flex-col items-end gap-1">
+          <span className={`num ${i.bill?.status === "paid" ? "text-muted" : ""}`}>{lkr(i.amount)}</span>
+          {i.bill ? <StatusChip status={i.bill.status} days={i.bill.days_left} /> : <span className={`text-xs ${late ? "text-out" : "text-muted"}`}>{late ? "No bill recorded" : "Upcoming"}</span>}
+        </span>
+      </Link>
+    </li>
+  );
 }
 
 function BillRow({ s, payFrom, today, ym }: { s: StatementView; payFrom: Account[]; today: string; ym: string }) {

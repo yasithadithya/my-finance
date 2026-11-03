@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { loadAccounts, toPlan } from "@/lib/data";
-import { billedCount, ensureStatements, unbilled } from "@/lib/statements";
+import { billedCount, ensureStatements, hasInterest, leftToPay, totalPayable, unbilled } from "@/lib/statements";
 import { currentMonth, lkr, ordinal, shortDate, todayColombo } from "@/lib/format";
 import type { Reconciliation, Txn } from "@/lib/types";
 import { deletePlan, deleteStatement } from "@/app/actions";
@@ -158,7 +158,10 @@ export default async function AccountPage({
             </div>
           )}
           {plans.length === 0 ? (
-            <p className="text-sm text-muted">None. The bank holds the full amount against the card; a plan tells statements how much is billed each month.</p>
+            <p className="text-sm text-muted">
+              None. To convert a purchase, open it from Latest transactions and tap Convert to instalments. The bank holds the full
+              amount against the card; a plan tells statements how much is billed each month.
+            </p>
           ) : (
             <ul className="ledger">
               {plans.map((p) => {
@@ -173,11 +176,12 @@ export default async function AccountPage({
                       <div className="h-full bg-accent" style={{ width: `${Math.round((done / p.months) * 100)}%` }} />
                     </div>
                     <div className="num mt-1.5 flex justify-between text-xs text-muted">
-                      <span>{done} of {p.months} billed</span>
-                      <span>{lkr(unbilled(p, ym))} left of {lkr(p.total_price)}</span>
+                      <span>{done} of {p.months} billed{hasInterest(p) ? ` · ${p.interest_rate}% a year` : " · 0%"}</span>
+                      <span>{lkr(leftToPay(p, ym))} left of {lkr(totalPayable(p))}</span>
                     </div>
                     <div className="mt-1.5 flex gap-4 text-xs">
                       <Link href={`/accounts/${id}?plan=${p.id}#plans`} className="text-accent">Edit</Link>
+                      {p.purchase_txn_id && <Link href={`/transactions/${p.purchase_txn_id}`} className="text-accent">Purchase</Link>}
                       <form action={deletePlan}>
                         <input type="hidden" name="id" value={p.id} />
                         <input type="hidden" name="card_account_id" value={id} />

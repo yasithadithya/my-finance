@@ -11,7 +11,7 @@ Stack: Next.js 15 (App Router, TypeScript, Tailwind) and Supabase (Postgres + Au
 - **Phase 3 (done)**: Debts page with a payoff planner, money owed to me, reconcile.
 - **Phase 4 (done)**: push notifications (a daily reminder job).
 
-The schema is in `supabase/migrations/0001_schema.sql`, plus `0002_push.sql` for push notifications.
+The schema is in `supabase/migrations/0001_schema.sql`, plus `0002_push.sql` for push notifications and `0003_instalments.sql` for converting purchases to instalments (run it once in the SQL Editor).
 
 ## Setup (about 15 minutes)
 
@@ -60,6 +60,7 @@ The seed sets the cards from your available credit on 2 Nov (BOC owes 7,737.34, 
 - **Card statements**: amount = what you owed at the end of the statement day, minus instalments the bank holds but hasn't billed yet. Money paid into the card after the statement day counts toward that bill. To correct an amount, use **Correct amount** on the card page. **Reset to auto** goes back to the worked-out figure.
 - **The October bill**: the app starts on 2 Nov, so it can't work out the 15 Oct statement (due 5 Nov). On each card page, tap **+ Add past statement** and enter what's still due.
 - **Reconcile**: on any account, enter what your bank shows (for cards, the available credit). Any difference is booked as an adjustment.
+- **Instalments**: open a credit card purchase (History → tap it) → **Convert to instalments**. Enter the months, the interest rate (0 for interest-free), and optionally the monthly amount your bank quoted. The card debt stays as it is. Each statement bills one instalment, Home counts only that month's instalment (not the full price), and the Pay tab lists it as a payment for that month until the plan ends. **Undo conversion** removes the plan.
 - **Debts**: set an interest rate on each card or loan (Edit account), then enter a monthly budget in the payoff planner.
 - **Owed to me**: tap an item → **Record money received**. Partly paid and paid are set for you.
 
@@ -72,6 +73,7 @@ The seed sets the cards from your available credit on 2 Nov (BOC owes 7,737.34, 
 - A credit card or loan balance below zero is money you owe.
 - Transfers are never counted as spending. Transfers into a card or loan show up as **Debt payments**.
 - The bank already holds the full remaining instalment amount against your card. So the Galaxy Buds plan never adds debt; it only tells the statement how much is billed each cycle.
+- Plans with interest: the price is already on the card, but interest is charged month by month. The app books each month's interest on the card on the statement day (note "… interest (2/6)"), so the bill and the debt match the bank. Change the plan to change those charges.
 
 ## Project layout
 

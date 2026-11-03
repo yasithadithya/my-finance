@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
-import { loadAccounts } from "@/lib/data";
-import { ensureStatements, type StatementView } from "@/lib/statements";
+import { loadAccounts, loadPlans } from "@/lib/data";
+import { ensureStatements, instalmentsDueIn, instalmentsInMonth, type StatementView } from "@/lib/statements";
 import { buildReminders, loadChecklist, loadReceivables } from "@/lib/reminders";
 import { currentMonth, lkr, monthLabel, monthRange, num, ordinal, shortDate, todayColombo } from "@/lib/format";
 import { isDebtType, type Account, type Txn } from "@/lib/types";
@@ -18,14 +18,16 @@ export default async function Home() {
   const today = todayColombo();
   const { start } = monthRange(ym);
 
-  const [accounts, summaryRes, recentRes, checklist, receivables] = await Promise.all([
+  const [accounts, recentRes, checklist, receivables, plans] = await Promise.all([
     loadAccounts(supabase),
-    supabase.from("monthly_summary").select("*").eq("month", start).maybeSingle(),
     supabase.from("transactions").select("*").order("date", { ascending: false }).order("created_at", { ascending: false }).limit(6),
     loadChecklist(supabase, ym),
     loadReceivables(supabase),
+    loadPlans(supabase),
   ]);
+  // Statements first: they book any instalment interest the month summary should see.
   const statements = await ensureStatements(supabase, accounts, today);
+  const summaryRes = await supabase.from("monthly_summary").select("*").eq("month", start).maybeSingle();
   const reminders = buildReminders(today, statements, checklist, receivables);
   const owedToMe = receivables.filter((r) => r.shown_status !== "quoted").reduce((s, r) => s + r.outstanding, 0);
   const latestBill = new Map<string, StatementView>();
@@ -36,7 +38,9 @@ export default async function Home() {
   const fixed = num(s?.fixed_spent);
   const other = num(s?.other_spent);
   const debt = num(s?.debt_payments);
-  const out = fixed + other + debt;
+  // A purchase on instalments counts only its instalment in each month, not the full price.
+  const instalments = instalmentsInMonth(plans, ym);
+  const out = fixed + other + instalments + debt;
   const left = moneyIn - out;
 
   const assets = accounts.filter((a) => !isDebtType(a.type)).reduce((t, a) => t + a.balance!, 0);
@@ -68,7 +72,7 @@ export default async function Home() {
         </dl>
 
         <div className="mt-6">
-          <MonthRunway ym={ym} today={today} bills={statements} fixed={checklist} cards={cards} animate />
+          <MonthRunway ym={ym} today={today} bills={statements} fixed={checklist} cards={cards} instalments={instalmentsDueIn(ym, plans, cards, statements)} animate />
         </div>
 
         <div className="mt-5 border-t border-line pt-4">
@@ -78,8 +82,9 @@ export default async function Home() {
             <Stat label="Money out" value={lkr(-out)} />
             <Stat label="Left" value={lkr(left)} tone={left < 0 ? "text-out" : ""} />
           </dl>
-          <dl className="num mt-3 grid grid-cols-3 gap-x-3 text-xs">
+          <dl className="num mt-3 grid grid-cols-2 gap-x-3 gap-y-2 text-xs">
             <Stat label="Fixed" value={lkr(fixed)} small />
+            <Stat label="Instalments" value={lkr(instalments)} small />
             <Stat label="Debts" value={lkr(debt)} small />
             <Stat label="Other" value={lkr(other)} small />
           </dl>

@@ -5,26 +5,198 @@ import type { Account, InstalmentPlan, Statement } from "@/lib/types";
 
 // ------------------------------------------------------------------ instalments
 
-/** How many instalments of the plan have been billed by the statement in month `ym` ("YYYY-MM"). */
+// The purchase price (principal) is already part of the card's debt, so a plan
+// never adds debt for it. Interest is different: the bank charges it month by
+// month, so the app books each month's interest on the card on statement day.
+
+export const hasInterest = (p: InstalmentPlan) => p.interest_rate > 0;
+
+/** Principal billed each month. On a 0% plan this is the instalment itself. */
+const principalEach = (p: InstalmentPlan) => (hasInterest(p) ? round2(p.total_price / p.months) : p.monthly_amount);
+
+/** Which instalment (1…months) is on the statement in month `ym` ("YYYY-MM"), or 0 if none. */
+export function instalmentNo(p: InstalmentPlan, ym: string): number {
+  const n = monthsBetween(p.first_billing_month.slice(0, 7), ym) + 1;
+  return n >= 1 && n <= p.months ? n : 0;
+}
+
+/** How many instalments of the plan have been billed by the statement in month `ym`. */
 export function billedCount(p: InstalmentPlan, ym: string): number {
   const n = monthsBetween(p.first_billing_month.slice(0, 7), ym) + 1;
   return Math.max(0, Math.min(p.months, n));
 }
 
 /**
- * The part of the plan the bank holds against the card but hasn't billed yet,
- * after the statement in month `ym`. The last instalment absorbs rounding.
+ * The principal the bank holds against the card but hasn't billed yet, after
+ * the statement in month `ym`. The last instalment absorbs rounding.
  */
 export function unbilled(p: InstalmentPlan, ym: string): number {
   const b = billedCount(p, ym);
-  return b >= p.months ? 0 : Math.max(0, round2(p.total_price - b * p.monthly_amount));
+  return b >= p.months ? 0 : Math.max(0, round2(p.total_price - b * principalEach(p)));
 }
 
-/** The amount this plan adds to the statement in month `ym`. */
+function principalThisMonth(p: InstalmentPlan, ym: string): number {
+  const n = instalmentNo(p, ym);
+  if (!n) return 0;
+  return n === p.months ? round2(p.total_price - (p.months - 1) * principalEach(p)) : principalEach(p);
+}
+
+/** Interest charged with the instalment in month `ym` (0 on interest-free plans). */
+export function interestThisMonth(p: InstalmentPlan, ym: string): number {
+  if (!hasInterest(p) || !instalmentNo(p, ym)) return 0;
+  return Math.max(0, round2(p.monthly_amount - principalThisMonth(p, ym)));
+}
+
+/** The full instalment (principal + interest) on the statement in month `ym`. */
 export function billedThisMonth(p: InstalmentPlan, ym: string): number {
+  return round2(principalThisMonth(p, ym) + interestThisMonth(p, ym));
+}
+
+/** Everything still to pay on the plan after the statement in month `ym`, interest included. */
+export function leftToPay(p: InstalmentPlan, ym: string): number {
   const b = billedCount(p, ym);
-  if (b === 0 || monthsBetween(p.first_billing_month.slice(0, 7), ym) >= p.months) return 0;
-  return b === p.months ? round2(p.total_price - (p.months - 1) * p.monthly_amount) : p.monthly_amount;
+  return hasInterest(p) ? round2((p.months - b) * p.monthly_amount) : unbilled(p, ym);
+}
+
+/** What the whole plan costs: the price, plus interest if any. */
+export function totalPayable(p: InstalmentPlan): number {
+  return hasInterest(p) ? round2(p.months * p.monthly_amount) : p.total_price;
+}
+
+/** Sum of all instalments billed on statements in month `ym`. */
+export function instalmentsInMonth(plans: InstalmentPlan[], ym: string): number {
+  return round2(plans.reduce((s, p) => s + billedThisMonth(p, ym), 0));
+}
+
+/** Fixed monthly instalment for `principal` over `months` at `rate` % a year (reducing balance). */
+export function monthlyWithInterest(principal: number, months: number, rate: number): number {
+  const r = rate / 1200;
+  if (r <= 0) return round2(principal / months);
+  return round2((principal * r) / (1 - Math.pow(1 + r, -months)));
+}
+
+/** First statement a purchase on `date` lands on, for a card that bills on `billingDay`. */
+export function firstStatementMonth(date: string, billingDay: number | null): string {
+  const ym = date.slice(0, 7);
+  return billingDay && Number(date.slice(8, 10)) > billingDay ? shiftMonth(ym, 1) : ym;
+}
+
+// ------------------------------------------------------------------ instalments to pay in a month
+
+export interface InstalmentDue {
+  plan: InstalmentPlan;
+  card: Account;
+  no: number; // 1…months
+  amount: number;
+  statement_date: string;
+  due_date: string | null;
+  /** The card bill this instalment is part of, once the statement exists. */
+  bill?: StatementView;
+}
+
+/**
+ * Instalments whose card bill is due in month `ym`. A statement in one month is
+ * usually due early the next, so this looks at last month's and this month's statements.
+ */
+export function instalmentsDueIn(ym: string, plans: InstalmentPlan[], cards: Account[], bills: StatementView[]): InstalmentDue[] {
+  const { start, end } = { start: `${ym}-01`, end: `${shiftMonth(ym, 1)}-01` };
+  const out: InstalmentDue[] = [];
+  for (const p of plans) {
+    const card = cards.find((c) => c.id === p.card_account_id);
+    if (!card) continue;
+    for (const sm of [shiftMonth(ym, -1), ym]) {
+      const no = instalmentNo(p, sm);
+      if (!no) continue;
+      const known = card.billing_day && card.due_day;
+      const sd = dayIn(sm, card.billing_day ?? 1);
+      const due = known ? dueDateFor(sd, card.billing_day!, card.due_day!) : null;
+      // Without statement/due days we can't place it; show it in its statement month.
+      if (due ? due < start || due >= end : sm !== ym) continue;
+      out.push({
+        plan: p,
+        card,
+        no,
+        amount: billedThisMonth(p, sm),
+        statement_date: sd,
+        due_date: due,
+        bill: bills.find((b) => b.account_id === card.id && b.statement_date === sd),
+      });
+    }
+  }
+  return out.sort((a, b) => (a.due_date ?? a.statement_date).localeCompare(b.due_date ?? b.statement_date));
+}
+
+// ------------------------------------------------------------------ interest charges
+
+type Charge = { id: string; date: string; amount: number; from_account_id: string; instalment_plan_id: string; note: string | null };
+
+/**
+ * Books the interest of plans with interest as card expenses on each statement
+ * day that has passed, and removes charges that no longer fit the plan (after
+ * an edit). Returns how much each card's balance changed.
+ */
+async function syncInterest(supabase: DB, cards: Account[], plans: InstalmentPlan[], today: string, uid?: string) {
+  const delta = new Map<string, number>();
+  if (!plans.length) return delta;
+  let q = supabase
+    .from("transactions")
+    .select("id,date,amount,from_account_id,instalment_plan_id,note")
+    .in("instalment_plan_id", plans.map((p) => p.id));
+  if (uid) q = q.eq("user_id", uid);
+  const { data, error } = await q;
+  if (error) throw new Error(error.message);
+  const existing = ((data ?? []) as Charge[]).map((t) => ({ ...t, amount: Number(t.amount) }));
+
+  const want: { plan: InstalmentPlan; card: Account; date: string; amount: number; note: string }[] = [];
+  for (const p of plans) {
+    const card = cards.find((c) => c.id === p.card_account_id);
+    if (!card?.billing_day || !hasInterest(p)) continue;
+    for (let n = 1; n <= p.months; n++) {
+      const ym = shiftMonth(p.first_billing_month.slice(0, 7), n - 1);
+      const sd = dayIn(ym, card.billing_day);
+      if (sd > today) break;
+      if (sd < card.opening_date) continue; // already in the opening balance
+      const amount = interestThisMonth(p, ym);
+      if (amount > 0) want.push({ plan: p, card, date: sd, amount, note: `${p.name} interest (${n}/${p.months})` });
+    }
+  }
+
+  const bump = (card: string, by: number) => delta.set(card, round2((delta.get(card) ?? 0) + by));
+  const inserts: Record<string, unknown>[] = [];
+  const updates: PromiseLike<unknown>[] = [];
+  const keep = new Set<string>();
+  for (const w of want) {
+    const t = existing.find((e) => e.instalment_plan_id === w.plan.id && e.date === w.date && !keep.has(e.id));
+    if (!t) {
+      inserts.push({
+        ...(w.card.user_id ? { user_id: w.card.user_id } : {}),
+        kind: "expense",
+        amount: w.amount,
+        date: w.date,
+        from_account_id: w.card.id,
+        instalment_plan_id: w.plan.id,
+        note: w.note,
+      });
+      bump(w.card.id, -w.amount);
+      continue;
+    }
+    keep.add(t.id);
+    if (t.amount !== w.amount || t.from_account_id !== w.card.id || t.note !== w.note) {
+      updates.push(supabase.from("transactions").update({ amount: w.amount, from_account_id: w.card.id, note: w.note }).eq("id", t.id));
+      bump(t.from_account_id, t.amount);
+      bump(w.card.id, -w.amount);
+    }
+  }
+  const stale = existing.filter((e) => !keep.has(e.id));
+  for (const s of stale) bump(s.from_account_id, s.amount);
+
+  if (inserts.length) {
+    const { error: e } = await supabase.from("transactions").insert(inserts);
+    if (e) throw new Error(e.message);
+  }
+  if (stale.length) updates.push(supabase.from("transactions").delete().in("id", stale.map((s) => s.id)));
+  await Promise.all(updates);
+  return delta;
 }
 
 // ------------------------------------------------------------------ dates
@@ -55,7 +227,7 @@ export interface StatementView extends Statement {
   remaining: number;
   status: "paid" | "due" | "overdue";
   days_left: number; // until due date (negative = overdue)
-  instalments: number; // instalment amount billed on this statement
+  instalments: number; // instalment amount (with interest) billed on this statement
 }
 
 /**
@@ -84,12 +256,19 @@ export async function ensureStatements(supabase: DB, accounts: Account[], today:
     stQ = stQ.eq("user_id", uid);
     plQ = plQ.eq("user_id", uid);
   }
-  const [txRes, stRes, plRes] = await Promise.all([txQ, stQ, plQ]);
-  if (txRes.error) throw new Error(txRes.error.message);
+  const [stRes, plRes] = await Promise.all([stQ, plQ]);
   if (stRes.error) throw new Error(stRes.error.message);
-
-  const txns = ((txRes.data ?? []) as Mini[]).map((t) => ({ ...t, amount: Number(t.amount) }));
+  if (plRes.error) throw new Error(plRes.error.message);
   const plans = (plRes.data ?? []).map(toPlan);
+
+  // Book any instalment interest that's due before reading the ledger, and keep
+  // the balances the caller already loaded in step.
+  const moved = await syncInterest(supabase, cards, plans, today, uid);
+  for (const a of accounts) if (moved.has(a.id) && a.balance !== undefined) a.balance = round2(a.balance + moved.get(a.id)!);
+
+  const txRes = await txQ;
+  if (txRes.error) throw new Error(txRes.error.message);
+  const txns = ((txRes.data ?? []) as Mini[]).map((t) => ({ ...t, amount: Number(t.amount) }));
   const statements = ((stRes.data ?? []) as Statement[]).map((s) => ({ ...s, statement_balance: Number(s.statement_balance) }));
 
   const inserts: Omit<Statement, "id">[] = [];

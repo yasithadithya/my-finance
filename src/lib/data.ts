@@ -33,5 +33,14 @@ export function toPlan(p: Record<string, unknown>): InstalmentPlan {
     monthly_amount: Number(p.monthly_amount),
     months: Number(p.months),
     interest_rate: Number(p.interest_rate ?? 0),
+    purchase_txn_id: (p.purchase_txn_id as string | null) ?? null,
   };
+}
+
+export async function loadPlans(supabase: DB, uid?: string): Promise<InstalmentPlan[]> {
+  let q = supabase.from("instalment_plans").select("*").order("first_billing_month");
+  if (uid) q = q.eq("user_id", uid);
+  const { data, error } = await q;
+  if (error) throw new Error(error.message);
+  return (data ?? []).map(toPlan);
 }

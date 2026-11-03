@@ -61,6 +61,8 @@ export interface InstalmentPlan {
   monthly_amount: number;
   first_billing_month: string;
   interest_rate: number;
+  /** The card purchase this plan was converted from (null for plans added by hand). */
+  purchase_txn_id: string | null;
 }
 
 export type ReceivableStatus = "waiting" | "quoted" | "partly_paid" | "paid";

@@ -2,7 +2,7 @@ import Amount from "@/components/Amount";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { loadAccounts, toPlan } from "@/lib/data";
-import { unbilled, billedCount } from "@/lib/statements";
+import { unbilled, billedCount, leftToPay } from "@/lib/statements";
 import { planPayoff, type Debt } from "@/lib/payoff";
 import { currentMonth, lkr, monthLabel } from "@/lib/format";
 
@@ -69,7 +69,7 @@ export default async function DebtsPage({ searchParams }: { searchParams: Promis
             {plans.map((p) => (
               <li key={p.id} className="num flex justify-between px-4 py-2.5">
                 <span>{p.name} · {billedCount(p, ym)}/{p.months}</span>
-                <span>{lkr(p.monthly_amount)}/mo · {lkr(unbilled(p, ym))} left</span>
+                <span>{lkr(p.monthly_amount)}/mo · {lkr(leftToPay(p, ym))} left</span>
               </li>
             ))}
           </ul>
