@@ -11,7 +11,7 @@ Stack: Next.js 15 (App Router, TypeScript, Tailwind) and Supabase (Postgres + Au
 - **Phase 3 (done)**: Debts page with a payoff planner, money owed to me, reconcile.
 - **Phase 4 (done)**: push notifications (a daily reminder job).
 
-The schema is in `supabase/migrations/0001_schema.sql`, plus `0002_push.sql` for push notifications and `0003_instalments.sql` for converting purchases to instalments (run it once in the SQL Editor).
+The schema is in `supabase/migrations/0001_schema.sql`, plus `0002_push.sql` for push notifications `0003_instalments.sql` for converting purchases to instalments, and `0004_instalment_marks.sql` for marking instalments paid (run each once in the SQL Editor).
 
 ## Setup (about 15 minutes)
 
@@ -61,6 +61,8 @@ The seed sets the cards from your available credit on 2 Nov (BOC owes 7,737.34, 
 - **The October bill**: the app starts on 2 Nov, so it can't work out the 15 Oct statement (due 5 Nov). On each card page, tap **+ Add past statement** and enter what's still due.
 - **Reconcile**: on any account, enter what your bank shows (for cards, the available credit). Any difference is booked as an adjustment.
 - **Instalments**: open a credit card purchase (History → tap it) → **Convert to instalments**. Enter the months, the interest rate (0 for interest-free), and optionally the monthly amount your bank quoted. The card debt stays as it is. Each statement bills one instalment, Home counts only that month's instalment (not the full price), and the Pay tab lists it as a payment for that month until the plan ends. **Undo conversion** removes the plan.
+- **Marking an instalment paid**: Pay tab → **Instalments** → tap **D** on the row. Pick the bank account to record the payment into the card (it also counts toward that card's bill), or **Just tick** if you paid it as part of the full card bill. Paying the whole card bill marks its instalments paid automatically. Tap the filled **D** to undo.
+- **Home**: the top figure is the total in your bank accounts, with cash and savings, card and loan debt, and net position below it. **Month by month** compares money in, out and left with earlier months.
 - **Debts**: set an interest rate on each card or loan (Edit account), then enter a monthly budget in the payoff planner.
 - **Owed to me**: tap an item → **Record money received**. Partly paid and paid are set for you.
 

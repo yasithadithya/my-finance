@@ -1,5 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
-import type { Account, InstalmentPlan } from "@/lib/types";
+import type { Account, InstalmentMark, InstalmentPlan } from "@/lib/types";
 
 export type DB = Awaited<ReturnType<typeof createClient>>;
 
@@ -35,6 +35,13 @@ export function toPlan(p: Record<string, unknown>): InstalmentPlan {
     interest_rate: Number(p.interest_rate ?? 0),
     purchase_txn_id: (p.purchase_txn_id as string | null) ?? null,
   };
+}
+
+/** Instalment ticks for the given statement months ("YYYY-MM"). */
+export async function loadInstalmentMarks(supabase: DB, months: string[]): Promise<InstalmentMark[]> {
+  const { data, error } = await supabase.from("instalment_marks").select("*").in("month", months.map((m) => `${m}-01`));
+  if (error) return []; // table missing until 0004 is run
+  return (data ?? []) as InstalmentMark[];
 }
 
 export async function loadPlans(supabase: DB, uid?: string): Promise<InstalmentPlan[]> {

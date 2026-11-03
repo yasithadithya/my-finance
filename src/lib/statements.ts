@@ -1,7 +1,7 @@
 import type { DB } from "@/lib/data";
 import { toPlan } from "@/lib/data";
 import { addDays, dayIn, daysBetween, monthsBetween, round2, shiftMonth } from "@/lib/format";
-import type { Account, InstalmentPlan, Statement } from "@/lib/types";
+import type { Account, InstalmentMark, InstalmentPlan, Statement } from "@/lib/types";
 
 // ------------------------------------------------------------------ instalments
 
@@ -92,19 +92,33 @@ export interface InstalmentDue {
   due_date: string | null;
   /** The card bill this instalment is part of, once the statement exists. */
   bill?: StatementView;
+  /** Ticked as paid on the Pay tab. */
+  mark?: InstalmentMark;
 }
+
+/** Paid if ticked, or if the whole card bill it's on has been paid. */
+export const instalmentPaid = (i: InstalmentDue) => !!i.mark || i.bill?.status === "paid";
+
+/** Statement months whose instalments can be due in month `ym`. */
+export const dueStatementMonths = (ym: string) => [shiftMonth(ym, -1), ym];
 
 /**
  * Instalments whose card bill is due in month `ym`. A statement in one month is
  * usually due early the next, so this looks at last month's and this month's statements.
  */
-export function instalmentsDueIn(ym: string, plans: InstalmentPlan[], cards: Account[], bills: StatementView[]): InstalmentDue[] {
+export function instalmentsDueIn(
+  ym: string,
+  plans: InstalmentPlan[],
+  cards: Account[],
+  bills: StatementView[],
+  marks: InstalmentMark[] = [],
+): InstalmentDue[] {
   const { start, end } = { start: `${ym}-01`, end: `${shiftMonth(ym, 1)}-01` };
   const out: InstalmentDue[] = [];
   for (const p of plans) {
     const card = cards.find((c) => c.id === p.card_account_id);
     if (!card) continue;
-    for (const sm of [shiftMonth(ym, -1), ym]) {
+    for (const sm of dueStatementMonths(ym)) {
       const no = instalmentNo(p, sm);
       if (!no) continue;
       const known = card.billing_day && card.due_day;
@@ -120,6 +134,7 @@ export function instalmentsDueIn(ym: string, plans: InstalmentPlan[], cards: Acc
         statement_date: sd,
         due_date: due,
         bill: bills.find((b) => b.account_id === card.id && b.statement_date === sd),
+        mark: marks.find((m) => m.plan_id === p.id && m.month.slice(0, 7) === sm),
       });
     }
   }

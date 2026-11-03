@@ -65,6 +65,14 @@ export interface InstalmentPlan {
   purchase_txn_id: string | null;
 }
 
+export interface InstalmentMark {
+  id: string;
+  plan_id: string;
+  month: string; // first day of the statement month
+  transaction_id: string | null;
+  paid_at: string;
+}
+
 export type ReceivableStatus = "waiting" | "quoted" | "partly_paid" | "paid";
 
 export interface Receivable {

@@ -49,8 +49,9 @@ export default function MonthRunway({
   }
   for (const i of instalments) {
     if (i.bill || !i.due_date || i.due_date < first || i.due_date > last) continue;
-    const tone: Tone = i.due_date < today ? "out" : "muted";
-    events.push({ date: i.due_date, label: `${i.plan.name} instalment`, amount: i.amount, kind: "bill", tone, done: false });
+    const done = !!i.mark;
+    const tone: Tone = done ? "in" : i.due_date < today ? "out" : "muted";
+    events.push({ date: i.due_date, label: `${i.plan.name} instalment`, amount: i.amount, kind: "bill", tone, done });
   }
   for (const i of fixed) {
     if (!i.due_day) continue;

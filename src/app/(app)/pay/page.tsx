@@ -1,11 +1,18 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
-import { loadAccounts, loadPlans } from "@/lib/data";
-import { ensureStatements, instalmentsDueIn, type InstalmentDue, type StatementView } from "@/lib/statements";
+import { loadAccounts, loadInstalmentMarks, loadPlans } from "@/lib/data";
+import {
+  dueStatementMonths,
+  ensureStatements,
+  instalmentPaid,
+  instalmentsDueIn,
+  type InstalmentDue,
+  type StatementView,
+} from "@/lib/statements";
 import { loadChecklist, type ChecklistItem } from "@/lib/reminders";
 import { currentMonth, dayIn, lkr, monthLabel, monthRange, ordinal, shiftMonth, shortDate, todayColombo } from "@/lib/format";
 import { isDebtType, type Account } from "@/lib/types";
-import { payStatement, tickRecurring, untickRecurring } from "@/app/actions";
+import { markInstalment, payStatement, tickRecurring, unmarkInstalment, untickRecurring } from "@/app/actions";
 import { StatusChip } from "@/components/Reminders";
 import Amount from "@/components/Amount";
 import MonthRunway from "@/components/MonthRunway";
@@ -22,10 +29,11 @@ export default async function PayPage({ searchParams }: { searchParams: Promise<
 
   const supabase = await createClient();
   const accounts = await loadAccounts(supabase);
-  const [statements, checklist, plans] = await Promise.all([
+  const [statements, checklist, plans, marks] = await Promise.all([
     ensureStatements(supabase, accounts, today),
     loadChecklist(supabase, ym),
     loadPlans(supabase),
+    loadInstalmentMarks(supabase, dueStatementMonths(ym)),
   ]);
 
   // This month: every unpaid bill plus the ones due this month. Other months: bills due in that month.
@@ -43,8 +51,9 @@ export default async function PayPage({ searchParams }: { searchParams: Promise<
 
   // Instalments due this month. Once the statement is out the instalment is part
   // of that card bill; before that (and for future months) it's counted here.
-  const instalments = instalmentsDueIn(ym, plans, cards, statements);
-  const instalmentsLeft = instalments.filter((i) => !i.bill).reduce((s, i) => s + i.amount, 0);
+  const instalments = instalmentsDueIn(ym, plans, cards, statements, marks);
+  const instalmentsLeft = instalments.filter((i) => !i.bill && !i.mark).reduce((s, i) => s + i.amount, 0);
+  const ticked = fixedDone + instalments.filter((i) => i.mark).reduce((s, i) => s + i.amount, 0);
 
   return (
     <div className="space-y-5">
@@ -62,17 +71,22 @@ export default async function PayPage({ searchParams }: { searchParams: Promise<
           <div className="min-w-0"><dt className="text-xs text-muted">Card bills</dt><dd className="truncate">{lkr(billsLeft)}</dd></div>
           <div className="min-w-0"><dt className="text-xs text-muted">Instalments not billed yet</dt><dd className="truncate">{lkr(instalmentsLeft)}</dd></div>
           <div className="min-w-0"><dt className="text-xs text-muted">Fixed</dt><dd className="truncate">{lkr(fixedLeft)}</dd></div>
-          <div className="min-w-0"><dt className="text-xs text-muted">Ticked</dt><dd className="truncate text-in">{lkr(fixedDone)}</dd></div>
+          <div className="min-w-0"><dt className="text-xs text-muted">Ticked</dt><dd className="truncate text-in">{lkr(ticked)}</dd></div>
         </dl>
       </section>
 
       {instalments.length > 0 && (
-        <section>
+        <section id="instalments">
           <div className="section-head"><h2>Instalments</h2></div>
           <ul className="ledger">
-            {instalments.map((i) => <InstalmentRow key={`${i.plan.id}-${i.statement_date}`} i={i} today={today} />)}
+            {instalments.map((i) => (
+              <InstalmentRow key={`${i.plan.id}-${i.statement_date}`} i={i} today={today} ym={ym} payFrom={payFrom} />
+            ))}
           </ul>
-          <p className="mt-2 px-1 text-xs text-muted">Must be paid each month until the plan ends. Once the statement is out, the instalment is part of that card bill.</p>
+          <p className="mt-2 px-1 text-xs text-muted">
+            Must be paid each month until the plan ends. Tap <strong>D</strong> to mark one paid: pick the bank account to record the
+            payment into the card, or &ldquo;Just tick&rdquo; if you paid it with the whole card bill. Paying the full card bill also marks it paid.
+          </p>
         </section>
       )}
 
@@ -120,27 +134,83 @@ function AccountOptions({ list }: { list: Account[] }) {
   return <>{list.map((a) => <option key={a.id} value={a.id}>{a.name} · {lkr(a.balance)}</option>)}</>;
 }
 
-function InstalmentRow({ i, today }: { i: InstalmentDue; today: string }) {
+function InstalmentRow({ i, today, ym, payFrom }: { i: InstalmentDue; today: string; ym: string; payFrom: Account[] }) {
   const left = i.plan.months - i.no;
-  const late = !i.bill && i.due_date !== null && i.due_date < today;
-  return (
-    <li>
-      <Link href={`/accounts/${i.card.id}#plans`} className="flex items-center justify-between gap-3 px-4 py-3">
-        <span className="min-w-0">
-          <span className="block truncate font-medium">{i.plan.name}</span>
-          <span className="block truncate text-xs text-muted">
-            {i.no} of {i.plan.months} · {i.card.name}
-            {i.bill
-              ? `, on the ${shortDate(i.statement_date)} bill`
-              : `, billed ${shortDate(i.statement_date)}${i.due_date ? `, due ${shortDate(i.due_date)}` : ""}`}
-            {left === 0 ? " · last one" : ` · ${left} more after this`}
-          </span>
+  const paid = instalmentPaid(i);
+  const late = !paid && i.due_date !== null && i.due_date < today;
+  const back = `/pay?month=${ym}`;
+  const info = (
+    <span className="min-w-0">
+      <span className={`block truncate ${paid ? "text-muted line-through" : "font-medium"}`}>{i.plan.name}</span>
+      <span className={`block truncate text-xs ${late ? "text-out" : "text-muted"}`}>
+        {i.no} of {i.plan.months} · {i.card.name}
+        {i.bill
+          ? `, on the ${shortDate(i.statement_date)} bill`
+          : `, billed ${shortDate(i.statement_date)}${i.due_date ? `, due ${shortDate(i.due_date)}` : ""}`}
+        {left === 0 ? " · last one" : ` · ${left} more after this`}
+      </span>
+      {i.bill && !paid && <span className="mt-0.5 block"><StatusChip status={i.bill.status} days={i.bill.days_left} /></span>}
+    </span>
+  );
+
+  // Ticked: tap the filled D to undo.
+  if (i.mark) {
+    return (
+      <li className="flex items-center justify-between gap-3 px-4 py-3">
+        {info}
+        <span className="flex items-center gap-3">
+          <span className="num text-muted">{lkr(i.amount)}</span>
+          <form action={unmarkInstalment}>
+            <input type="hidden" name="mark_id" value={i.mark.id} />
+            <input type="hidden" name="back" value={back} />
+            <button className="grid h-9 w-9 place-items-center rounded-full bg-accent text-sm font-bold text-on-accent transition-transform active:scale-90" aria-label={`Undo ${i.plan.name}`} title="Tap to undo">
+              D
+            </button>
+          </form>
         </span>
+      </li>
+    );
+  }
+
+  // Paid through the full card bill: nothing to tick.
+  if (paid) {
+    return (
+      <li className="flex items-center justify-between gap-3 px-4 py-3">
+        {info}
         <span className="flex flex-col items-end gap-1">
-          <span className={`num ${i.bill?.status === "paid" ? "text-muted" : ""}`}>{lkr(i.amount)}</span>
-          {i.bill ? <StatusChip status={i.bill.status} days={i.bill.days_left} /> : <span className={`text-xs ${late ? "text-out" : "text-muted"}`}>{late ? "No bill recorded" : "Upcoming"}</span>}
+          <span className="num text-muted">{lkr(i.amount)}</span>
+          <span className="text-xs text-in">Paid with the bill</span>
         </span>
-      </Link>
+      </li>
+    );
+  }
+
+  const ring =
+    "grid h-9 w-9 place-items-center rounded-full border-2 border-dashed border-accent/50 text-sm font-bold text-accent/70 transition-colors hover:border-accent hover:text-accent active:scale-90";
+  return (
+    <li className="px-4 py-3">
+      <details>
+        <summary className="flex cursor-pointer list-none items-center justify-between gap-3">
+          {info}
+          <span className="flex items-center gap-3">
+            <span className="num">{lkr(i.amount)}</span>
+            <span className={ring}>D</span>
+          </span>
+        </summary>
+        <form action={markInstalment} className="mt-3 grid grid-cols-2 gap-2">
+          <input type="hidden" name="plan_id" value={i.plan.id} />
+          <input type="hidden" name="month" value={i.statement_date.slice(0, 7)} />
+          <input type="hidden" name="no" value={i.no} />
+          <input type="hidden" name="back" value={back} />
+          <select name="account_id" className="field col-span-2" defaultValue={payFrom[0]?.id ?? "none"} required>
+            {payFrom.length > 0 && <optgroup label="Paid into the card from"><AccountOptions list={payFrom} /></optgroup>}
+            <option value="none">Just tick (paid with the card bill)</option>
+          </select>
+          <input name="amount" inputMode="decimal" defaultValue={i.amount.toFixed(2)} className="field num" aria-label="Amount" />
+          <input name="date" type="date" defaultValue={today} className="field" aria-label="Date" />
+          <button className="btn col-span-2">Mark paid</button>
+        </form>
+      </details>
     </li>
   );
 }

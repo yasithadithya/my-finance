@@ -371,6 +371,61 @@ export async function deletePlan(fd: FormData) {
   redirect(back?.startsWith("/") ? back : `/accounts/${str(fd, "card_account_id")}#plans`);
 }
 
+/**
+ * Mark one instalment paid. Records a payment from a bank account into the card
+ * (which also counts toward that card's bill), unless account is "none".
+ */
+export async function markInstalment(fd: FormData) {
+  const planId = str(fd, "plan_id");
+  const month = str(fd, "month"); // statement month, YYYY-MM
+  const account = str(fd, "account_id");
+  const amount = money(fd, "amount");
+  const date = str(fd, "date") ?? todayColombo();
+  const back = str(fd, "back");
+  if (!planId || !isYm(month) || !account) return;
+  const supabase = await createClient();
+
+  let txnId: string | null = null;
+  if (account !== "none") {
+    if (!amount || Number.isNaN(amount) || amount <= 0) return;
+    const { data: plan } = await supabase.from("instalment_plans").select("name,card_account_id,months").eq("id", planId).maybeSingle();
+    if (!plan || plan.card_account_id === account) return;
+    const no = int(fd, "no");
+    const { data, error } = await supabase
+      .from("transactions")
+      .insert({
+        kind: "transfer",
+        amount,
+        date,
+        from_account_id: account,
+        to_account_id: plan.card_account_id,
+        note: `${plan.name} instalment (${no}/${plan.months})`,
+      })
+      .select("id")
+      .single();
+    if (error) throw new Error(error.message);
+    txnId = data.id;
+  }
+  const { error } = await supabase
+    .from("instalment_marks")
+    .upsert({ plan_id: planId, month: monthRange(month).start, transaction_id: txnId }, { onConflict: "plan_id,month" });
+  if (error) throw new Error(error.message);
+  revalidateAll();
+  redirect(back?.startsWith("/") ? back : "/pay");
+}
+
+/** Undo an instalment tick, and delete the payment it recorded. */
+export async function unmarkInstalment(fd: FormData) {
+  const markId = str(fd, "mark_id");
+  const back = str(fd, "back");
+  const supabase = await createClient();
+  const { data: mark } = await supabase.from("instalment_marks").select("transaction_id").eq("id", markId!).maybeSingle();
+  await supabase.from("instalment_marks").delete().eq("id", markId!);
+  if (mark?.transaction_id) await supabase.from("transactions").delete().eq("id", mark.transaction_id);
+  revalidateAll();
+  redirect(back?.startsWith("/") ? back : "/pay");
+}
+
 // ------------------------------------------------------------------ money owed to me
 
 export async function saveReceivable(_: FormState, fd: FormData): Promise<FormState> {
