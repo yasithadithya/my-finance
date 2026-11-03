@@ -41,8 +41,7 @@ export async function middleware(request: NextRequest) {
 
 export const config = {
   matcher: [
-    // Everything except static files, the manifest, the service worker, icons
-    // and the cron route (which checks its own secret).
+    // Everything except static files, the manifest, the service worker and icons.
     "/((?!_next/static|_next/image|favicon.ico|manifest.webmanifest|sw.js|icons/|api/cron/).*)",
   ],
 };

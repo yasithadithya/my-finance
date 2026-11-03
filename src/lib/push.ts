@@ -1,53 +1,26 @@
-// Server only (uses the VAPID private key).
-import webpush from "web-push";
-
-export interface PushSub {
-  endpoint: string;
-  keys: { p256dh: string; auth: string };
-}
-
-export interface PushMessage {
-  title: string;
-  body: string;
-  url: string;
-  tag?: string;
-}
-
-type Row = { endpoint: string; p256dh: string; auth: string };
+import webpush, { type PushSubscription } from "web-push";
 
 let configured = false;
 function configure() {
-  if (configured) return;
+  if (configured) return true;
   const pub = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
   const priv = process.env.VAPID_PRIVATE_KEY;
-  if (!pub || !priv) throw new Error("Push isn't set up: add NEXT_PUBLIC_VAPID_PUBLIC_KEY and VAPID_PRIVATE_KEY.");
+  if (!pub || !priv) return false;
   webpush.setVapidDetails(process.env.VAPID_SUBJECT || "mailto:me@example.com", pub, priv);
   configured = true;
+  return true;
 }
 
-/**
- * Sends one message to every subscription. Returns how many went out and the
- * endpoints the push service says are gone (to delete).
- */
-export async function sendToSubscriptions(rows: Row[], msg: PushMessage): Promise<{ sent: number; gone: string[] }> {
-  configure();
-  const gone: string[] = [];
-  let sent = 0;
-  await Promise.all(
-    rows.map(async (r) => {
-      try {
-        await webpush.sendNotification(
-          { endpoint: r.endpoint, keys: { p256dh: r.p256dh, auth: r.auth } },
-          JSON.stringify(msg),
-          { TTL: 60 * 60 * 12, urgency: "normal" },
-        );
-        sent++;
-      } catch (e) {
-        const code = (e as { statusCode?: number }).statusCode;
-        if (code === 404 || code === 410) gone.push(r.endpoint);
-        else throw e;
-      }
-    }),
-  );
-  return { sent, gone };
+export async function sendPush(
+  subscription: PushSubscription,
+  payload: { title: string; body: string; url?: string; tag?: string },
+): Promise<{ ok: boolean; gone?: boolean; error?: string }> {
+  if (!configure()) return { ok: false, error: "VAPID keys are not set" };
+  try {
+    await webpush.sendNotification(subscription, JSON.stringify(payload), { TTL: 60 * 60 * 12 });
+    return { ok: true };
+  } catch (e) {
+    const status = (e as { statusCode?: number }).statusCode;
+    return { ok: false, gone: status === 404 || status === 410, error: (e as Error).message };
+  }
 }

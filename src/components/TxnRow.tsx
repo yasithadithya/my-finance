@@ -1,46 +1,39 @@
 import Link from "next/link";
-import { lkr } from "@/lib/format";
+import { ArrowDownLeft, ArrowLeftRight, ArrowUpRight, Scale } from "lucide-react";
+import { lkr, timeColombo } from "@/lib/format";
 import type { Account, Txn } from "@/lib/types";
 
-// Arrow glyphs: money in (down-left), out (up-right), moved between accounts, adjusted.
-const GLYPH = {
-  income: { d: "M17 7 7 17M7 9v8h8", cls: "bg-in/15 text-in" },
-  expense: { d: "M7 17 17 7M9 7h8v8", cls: "bg-out/15 text-out" },
-  transfer: { d: "M4 9h14l-3-3M20 15H6l3 3", cls: "bg-surface-2 text-muted" },
-  adjustment: { d: "M5 12h14", cls: "bg-surface-2 text-muted" },
-} as const;
-
-export default function TxnRow({ t, byId }: { t: Txn; byId: Map<string, Account> }) {
+export default function TxnRow({ t, byId, showTime = true }: { t: Txn; byId: Map<string, Account>; showTime?: boolean }) {
   const from = t.from_account_id ? byId.get(t.from_account_id)?.name ?? "—" : null;
   const to = t.to_account_id ? byId.get(t.to_account_id)?.name ?? "—" : null;
   const amount = Number(t.amount);
 
-  let sub: string, value: string, tone: string;
+  let value: string, tone: string, Icon = ArrowUpRight, iconTone = "text-out", tags: string[];
   if (t.kind === "income") {
-    sub = `Into ${to}`; value = "+" + lkr(amount); tone = "text-in";
+    value = "+" + lkr(amount); tone = "text-in"; Icon = ArrowDownLeft; iconTone = "text-in"; tags = [to!];
   } else if (t.kind === "transfer") {
-    sub = `${from} → ${to}`; value = lkr(amount); tone = "text-muted";
+    value = lkr(amount); tone = "text-text"; Icon = ArrowLeftRight; iconTone = "text-accent"; tags = [`${from} → ${to}`];
   } else if (t.kind === "adjustment") {
-    sub = `Balance adjusted on ${from ?? to}`; value = (to ? "+" : "−") + lkr(amount); tone = "text-muted";
+    value = (to ? "+" : "−") + lkr(amount); tone = "text-muted"; Icon = Scale; iconTone = "text-muted"; tags = [from ?? to!, "adjust"];
   } else {
-    sub = from ?? ""; value = "−" + lkr(amount); tone = "";
+    value = "−" + lkr(amount); tone = "text-out"; tags = [from!];
   }
-  const title = t.note || (t.kind === "transfer" ? "Transfer" : t.kind === "income" ? "Income" : t.kind === "adjustment" ? "Adjustment" : "Expense");
-  const g = GLYPH[t.kind as keyof typeof GLYPH] ?? GLYPH.expense;
+  const title = t.note || (t.kind === "transfer" ? "Transfer" : t.kind === "income" ? "Income" : "Expense");
 
   return (
     <li>
-      <Link href={`/transactions/${t.id}`} className="flex items-center gap-3 px-4 py-3">
-        <span className={`grid h-8 w-8 shrink-0 place-items-center rounded-full ${g.cls}`} aria-hidden>
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.25" strokeLinecap="round" strokeLinejoin="round">
-            <path d={g.d} />
-          </svg>
-        </span>
+      <Link href={`/transactions/${t.id}`} className="flex items-center gap-3 px-3.5 py-3 active:bg-surface-2">
+        <span className={`icon-tile ${iconTone}`}><Icon size={17} /></span>
         <span className="min-w-0 flex-1">
-          <span className="block truncate">{title}</span>
-          <span className="block truncate text-xs text-muted">{sub}</span>
+          <span className="block truncate text-[15px] font-medium">{title}</span>
+          <span className="mt-0.5 flex gap-1.5 overflow-hidden">
+            {tags.map((tg) => <span key={tg} className="tag truncate">{tg}</span>)}
+          </span>
         </span>
-        <span className={`num shrink-0 ${tone}`}>{value}</span>
+        <span className="shrink-0 text-right">
+          <span className={`num block text-[15px] font-medium ${tone}`}>{value}</span>
+          {showTime && <span className="num block text-[10px] text-faint">{timeColombo(t.created_at)}</span>}
+        </span>
       </Link>
     </li>
   );

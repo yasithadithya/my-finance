@@ -3,10 +3,8 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { addDays, dayIn, monthRange, round2, shiftMonth, todayColombo } from "@/lib/format";
-import { sendToSubscriptions, type PushSub } from "@/lib/push";
-import { monthlyWithInterest } from "@/lib/statements";
 import type { AccountType, TxnKind } from "@/lib/types";
+import { cycleOf, currentMonth, todayColombo } from "@/lib/format";
 
 export type FormState = { error?: string } | undefined;
 
@@ -93,16 +91,14 @@ export async function updateTxn(_: FormState, fd: FormData): Promise<FormState> 
   const { error } = await supabase.from("transactions").update(parsed.row).eq("id", id!);
   if (error) return { error: error.message };
   revalidateAll();
-  redirect(`/transactions?month=${parsed.row.date.slice(0, 7)}`);
+  redirect(`/transactions?month=${cycleOf(parsed.row.date)}`);
 }
 
 export async function deleteTxn(fd: FormData) {
   const id = str(fd, "id");
   const month = str(fd, "month");
   const supabase = await createClient();
-  // A converted purchase takes its plan with it (the database cascades); remove the plan's interest charges too.
-  const { data: plans } = await supabase.from("instalment_plans").select("id").eq("purchase_txn_id", id!);
-  await deletePlanCharges(supabase, (plans ?? []).map((p) => p.id));
+  await supabase.from("recurring_marks").delete().eq("transaction_id", id!);
   await supabase.from("transactions").delete().eq("id", id!);
   revalidateAll();
   redirect(month ? `/transactions?month=${month}` : "/transactions");
@@ -141,7 +137,7 @@ function readAccount(fd: FormData) {
       credit_limit: type === "credit_card" ? creditLimit : null,
       billing_day: type === "credit_card" ? billing : null,
       due_day: type === "credit_card" ? due : null,
-      interest_rate: ["fd", "credit_card", "loan", "savings"].includes(type) ? money(fd, "interest_rate") : null,
+      interest_rate: money(fd, "interest_rate"),
       maturity_date: type === "fd" ? str(fd, "maturity_date") : null,
       archived: fd.get("archived") === "on",
       sort_order: int(fd, "sort_order") ?? 0,
@@ -170,260 +166,127 @@ export async function updateAccount(_: FormState, fd: FormData): Promise<FormSta
   redirect(`/accounts/${id}`);
 }
 
-const isYm = (v: string | null): v is string => !!v && /^\d{4}-\d{2}$/.test(v);
-const isDate = (v: string | null): v is string => !!v && /^\d{4}-\d{2}-\d{2}$/.test(v);
+// ------------------------------------------------------------------ card statements & instalments
+
+export async function saveStatement(_: FormState, fd: FormData): Promise<FormState> {
+  const account_id = str(fd, "account_id");
+  const statement_date = str(fd, "statement_date");
+  const due_date = str(fd, "due_date");
+  const amount = money(fd, "statement_balance");
+  if (!account_id || !statement_date || !due_date) return { error: "Missing card or dates." };
+  if (amount === null || Number.isNaN(amount) || amount < 0) return { error: "Enter the statement amount (0 or more)." };
+  const start = new Date(statement_date + "T00:00:00Z");
+  start.setUTCMonth(start.getUTCMonth() - 1);
+  start.setUTCDate(start.getUTCDate() + 1);
+  const supabase = await createClient();
+  const { error } = await supabase.from("cc_statements").upsert(
+    {
+      account_id,
+      statement_date,
+      period_start: start.toISOString().slice(0, 10),
+      period_end: statement_date,
+      statement_balance: amount,
+      due_date,
+      source: "edited",
+    },
+    { onConflict: "account_id,statement_date" },
+  );
+  if (error) return { error: error.message };
+  revalidateAll();
+  redirect("/cards");
+}
+
+export async function clearStatement(fd: FormData) {
+  const supabase = await createClient();
+  await supabase.from("cc_statements").delete().eq("account_id", str(fd, "account_id")!).eq("statement_date", str(fd, "statement_date")!);
+  revalidateAll();
+  redirect("/cards");
+}
+
+export async function createPlan(_: FormState, fd: FormData): Promise<FormState> {
+  const name = str(fd, "name");
+  const card = str(fd, "card_account_id");
+  const total = money(fd, "total_price");
+  const months = int(fd, "months");
+  const first = str(fd, "first_billing_month"); // YYYY-MM
+  if (!name || !card || !first) return { error: "Fill in name, card and first billing month." };
+  if (!total || Number.isNaN(total) || total <= 0 || !months || months <= 0) return { error: "Enter the price and number of months." };
+  const monthly = money(fd, "monthly_amount") || Math.round((total / months) * 100) / 100;
+  const supabase = await createClient();
+  const { error } = await supabase.from("instalment_plans").insert({
+    name, card_account_id: card, total_price: total, months, monthly_amount: monthly, first_billing_month: `${first}-01`,
+  });
+  if (error) return { error: error.message };
+  revalidateAll();
+  redirect("/cards");
+}
+
+export async function deletePlan(fd: FormData) {
+  const supabase = await createClient();
+  await supabase.from("instalment_plans").delete().eq("id", str(fd, "id")!);
+  revalidateAll();
+  redirect("/cards");
+}
 
 // ------------------------------------------------------------------ fixed payments (the D tick)
 
-/** Tick a fixed payment for a month. Records the expense unless account is "none". */
-export async function tickRecurring(fd: FormData) {
-  const itemId = str(fd, "item_id");
-  const ym = str(fd, "month");
-  const account = str(fd, "account_id");
-  const amount = money(fd, "amount");
-  const date = str(fd, "date") ?? todayColombo();
-  if (!itemId || !isYm(ym) || !account) return;
+export async function toggleRecurring(fd: FormData) {
+  const itemId = str(fd, "item_id")!;
+  const cycle = str(fd, "cycle") ?? currentMonth();
+  const accountId = str(fd, "account_id");
+  const month = `${cycle}-01`;
   const supabase = await createClient();
 
-  let txnId: string | null = null;
-  if (account !== "none") {
-    if (!amount || Number.isNaN(amount) || amount <= 0) return;
-    const { data: item } = await supabase.from("recurring_items").select("name").eq("id", itemId).maybeSingle();
-    const { data, error } = await supabase
-      .from("transactions")
-      .insert({ kind: "expense", amount, date, from_account_id: account, recurring_item_id: itemId, note: item?.name ?? null })
-      .select("id")
-      .single();
-    if (error) throw new Error(error.message);
-    txnId = data.id;
+  const { data: mark } = await supabase.from("recurring_marks").select("*").eq("recurring_item_id", itemId).eq("month", month).maybeSingle();
+  if (mark) {
+    await supabase.from("recurring_marks").delete().eq("id", mark.id);
+    if (mark.transaction_id) await supabase.from("transactions").delete().eq("id", mark.transaction_id);
+  } else {
+    const { data: item } = await supabase.from("recurring_items").select("*").eq("id", itemId).single();
+    if (!item) return;
+    const from = accountId ?? item.pay_from_account_id;
+    let txnId: string | null = null;
+    if (from) {
+      const { data: txn } = await supabase
+        .from("transactions")
+        .insert({ kind: "expense", amount: item.amount, from_account_id: from, date: todayColombo(), note: item.name, recurring_item_id: item.id })
+        .select("id")
+        .single();
+      txnId = txn?.id ?? null;
+      if (accountId && !item.pay_from_account_id) {
+        await supabase.from("recurring_items").update({ pay_from_account_id: accountId }).eq("id", item.id);
+      }
+    }
+    await supabase.from("recurring_marks").insert({ recurring_item_id: itemId, month, transaction_id: txnId });
   }
-  const { error } = await supabase
-    .from("recurring_marks")
-    .upsert({ recurring_item_id: itemId, month: monthRange(ym).start, transaction_id: txnId }, { onConflict: "recurring_item_id,month" });
-  if (error) throw new Error(error.message);
   revalidateAll();
-  redirect(`/pay?month=${ym}`);
-}
-
-/** Undo a D tick, and delete the expense it recorded. */
-export async function untickRecurring(fd: FormData) {
-  const markId = str(fd, "mark_id");
-  const ym = str(fd, "month");
-  const supabase = await createClient();
-  const { data: mark } = await supabase.from("recurring_marks").select("transaction_id").eq("id", markId!).maybeSingle();
-  await supabase.from("recurring_marks").delete().eq("id", markId!);
-  if (mark?.transaction_id) await supabase.from("transactions").delete().eq("id", mark.transaction_id);
-  revalidateAll();
-  redirect(isYm(ym) ? `/pay?month=${ym}` : "/pay");
 }
 
 export async function saveRecurringItem(_: FormState, fd: FormData): Promise<FormState> {
   const id = str(fd, "id");
   const name = str(fd, "name");
   const amount = money(fd, "amount");
-  const due = int(fd, "due_day");
-  const end = str(fd, "end_month");
   if (!name) return { error: "Give it a name." };
-  if (amount === null || Number.isNaN(amount) || amount <= 0) return { error: "Enter an amount above 0." };
-  if (due !== null && (Number.isNaN(due) || due < 1 || due > 31)) return { error: "Due day must be 1–31." };
-  if (end && !isYm(end)) return { error: "Last month must look like 2027-03." };
+  if (!amount || Number.isNaN(amount) || amount <= 0) return { error: "Enter an amount above 0." };
   const row = {
     name,
     amount,
-    due_day: due,
     pay_from_account_id: str(fd, "pay_from_account_id"),
-    end_month: end ? monthRange(end).start : null,
-    active: fd.get("active") === "on",
-    sort_order: int(fd, "sort_order") ?? 0,
+    due_day: int(fd, "due_day"),
   };
   const supabase = await createClient();
   const { error } = id
     ? await supabase.from("recurring_items").update(row).eq("id", id)
-    : await supabase.from("recurring_items").insert(row);
+    : await supabase.from("recurring_items").insert({ ...row, active: true });
   if (error) return { error: error.message };
   revalidateAll();
-  redirect("/pay/items");
+  redirect("/pay?manage=1");
 }
 
-export async function deleteRecurringItem(fd: FormData) {
+export async function setRecurringActive(fd: FormData) {
   const supabase = await createClient();
-  await supabase.from("recurring_items").delete().eq("id", str(fd, "id")!);
+  await supabase.from("recurring_items").update({ active: fd.get("active") === "true" }).eq("id", str(fd, "id")!);
   revalidateAll();
-  redirect("/pay/items");
-}
-
-// ------------------------------------------------------------------ card statements
-
-/** Pay a card bill: a transfer from a bank account into the card. */
-export async function payStatement(fd: FormData) {
-  const card = str(fd, "card_id");
-  const from = str(fd, "from_account_id");
-  const amount = money(fd, "amount");
-  const date = str(fd, "date") ?? todayColombo();
-  const back = str(fd, "back") ?? "/pay";
-  if (!card || !from || !amount || Number.isNaN(amount) || amount <= 0 || card === from) return;
-  const supabase = await createClient();
-  const { error } = await supabase
-    .from("transactions")
-    .insert({ kind: "transfer", amount, date, from_account_id: from, to_account_id: card, note: str(fd, "note") ?? "Card bill" });
-  if (error) throw new Error(error.message);
-  revalidateAll();
-  redirect(back);
-}
-
-/** Add a statement by hand (e.g. one from before the app), or correct an auto one. */
-export async function saveStatement(_: FormState, fd: FormData): Promise<FormState> {
-  const id = str(fd, "id");
-  const account = str(fd, "account_id");
-  const sd = str(fd, "statement_date");
-  const due = str(fd, "due_date");
-  const amount = money(fd, "statement_balance");
-  if (!account) return { error: "Missing card." };
-  if (!isDate(sd) || !isDate(due)) return { error: "Pick the statement date and the due date." };
-  if (due < sd) return { error: "The due date must be after the statement date." };
-  if (amount === null || Number.isNaN(amount) || amount < 0) return { error: "Enter the amount due (0 or more)." };
-  const row = {
-    account_id: account,
-    statement_date: sd,
-    period_start: addDays(dayIn(shiftMonth(sd.slice(0, 7), -1), Number(sd.slice(8))), 1),
-    period_end: sd,
-    statement_balance: amount,
-    due_date: due,
-    source: "edited" as const,
-  };
-  const supabase = await createClient();
-  const { error } = id
-    ? await supabase.from("cc_statements").update(row).eq("id", id)
-    : await supabase.from("cc_statements").upsert(row, { onConflict: "account_id,statement_date" });
-  if (error) return { error: error.message };
-  revalidateAll();
-  redirect(`/accounts/${account}`);
-}
-
-export async function deleteStatement(fd: FormData) {
-  const supabase = await createClient();
-  await supabase.from("cc_statements").delete().eq("id", str(fd, "id")!);
-  revalidateAll();
-  redirect(`/accounts/${str(fd, "account_id")}`);
-}
-
-// ------------------------------------------------------------------ instalment plans
-
-/**
- * Add or edit an instalment plan. With `purchase_txn_id`, this converts that
- * card purchase: the debt stays on the card as it is, and from then on each
- * month only counts (and bills) its instalment.
- */
-export async function savePlan(_: FormState, fd: FormData): Promise<FormState> {
-  const id = str(fd, "id");
-  const card = str(fd, "card_account_id");
-  const purchase = str(fd, "purchase_txn_id");
-  const name = str(fd, "name");
-  const total = money(fd, "total_price");
-  const months = int(fd, "months");
-  const rate = money(fd, "interest_rate") ?? 0;
-  let monthly = money(fd, "monthly_amount");
-  const first = str(fd, "first_billing_month");
-  if (!card) return { error: "Missing card." };
-  if (!name) return { error: "Give the plan a name." };
-  if (total === null || Number.isNaN(total) || total <= 0) return { error: "Enter the total price." };
-  if (months === null || Number.isNaN(months) || months < 1 || months > 120) return { error: "Enter the number of months (1–120)." };
-  if (Number.isNaN(rate) || rate < 0 || rate > 100) return { error: "Interest must be between 0 and 100% a year." };
-  if (!isYm(first)) return { error: "Pick the month of the first instalment." };
-  if (monthly === null) monthly = monthlyWithInterest(total, months, rate);
-  if (Number.isNaN(monthly) || monthly <= 0) return { error: "Monthly amount must be above 0." };
-  if (rate > 0 && monthly * months < total) return { error: "With interest, the monthly amount × months can't be less than the price." };
-
-  const supabase = await createClient();
-  if (purchase && !id) {
-    const { data: t } = await supabase.from("transactions").select("kind,from_account_id").eq("id", purchase).maybeSingle();
-    if (!t || t.kind !== "expense" || t.from_account_id !== card) return { error: "Only a purchase made on this card can be converted." };
-  }
-  const row = {
-    card_account_id: card,
-    name,
-    total_price: total,
-    months,
-    monthly_amount: monthly,
-    first_billing_month: monthRange(first).start,
-    interest_rate: rate,
-  };
-  const { error } = id
-    ? await supabase.from("instalment_plans").update(row).eq("id", id)
-    : await supabase.from("instalment_plans").insert({ ...row, purchase_txn_id: purchase });
-  if (error) return { error: error.code === "23505" ? "This purchase is already on an instalment plan." : error.message };
-  revalidateAll();
-  redirect(purchase ? `/transactions/${purchase}` : `/accounts/${card}#plans`);
-}
-
-/** Interest charges the app booked for a plan; they go when the plan goes. */
-async function deletePlanCharges(supabase: Awaited<ReturnType<typeof createClient>>, planIds: string[]) {
-  if (planIds.length) await supabase.from("transactions").delete().in("instalment_plan_id", planIds);
-}
-
-export async function deletePlan(fd: FormData) {
-  const id = str(fd, "id")!;
-  const supabase = await createClient();
-  await deletePlanCharges(supabase, [id]);
-  await supabase.from("instalment_plans").delete().eq("id", id);
-  revalidateAll();
-  const back = str(fd, "back");
-  redirect(back?.startsWith("/") ? back : `/accounts/${str(fd, "card_account_id")}#plans`);
-}
-
-/**
- * Mark one instalment paid. Records a payment from a bank account into the card
- * (which also counts toward that card's bill), unless account is "none".
- */
-export async function markInstalment(fd: FormData) {
-  const planId = str(fd, "plan_id");
-  const month = str(fd, "month"); // statement month, YYYY-MM
-  const account = str(fd, "account_id");
-  const amount = money(fd, "amount");
-  const date = str(fd, "date") ?? todayColombo();
-  const back = str(fd, "back");
-  if (!planId || !isYm(month) || !account) return;
-  const supabase = await createClient();
-
-  let txnId: string | null = null;
-  if (account !== "none") {
-    if (!amount || Number.isNaN(amount) || amount <= 0) return;
-    const { data: plan } = await supabase.from("instalment_plans").select("name,card_account_id,months").eq("id", planId).maybeSingle();
-    if (!plan || plan.card_account_id === account) return;
-    const no = int(fd, "no");
-    const { data, error } = await supabase
-      .from("transactions")
-      .insert({
-        kind: "transfer",
-        amount,
-        date,
-        from_account_id: account,
-        to_account_id: plan.card_account_id,
-        note: `${plan.name} instalment (${no}/${plan.months})`,
-      })
-      .select("id")
-      .single();
-    if (error) throw new Error(error.message);
-    txnId = data.id;
-  }
-  const { error } = await supabase
-    .from("instalment_marks")
-    .upsert({ plan_id: planId, month: monthRange(month).start, transaction_id: txnId }, { onConflict: "plan_id,month" });
-  if (error) throw new Error(error.message);
-  revalidateAll();
-  redirect(back?.startsWith("/") ? back : "/pay");
-}
-
-/** Undo an instalment tick, and delete the payment it recorded. */
-export async function unmarkInstalment(fd: FormData) {
-  const markId = str(fd, "mark_id");
-  const back = str(fd, "back");
-  const supabase = await createClient();
-  const { data: mark } = await supabase.from("instalment_marks").select("transaction_id").eq("id", markId!).maybeSingle();
-  await supabase.from("instalment_marks").delete().eq("id", markId!);
-  if (mark?.transaction_id) await supabase.from("transactions").delete().eq("id", mark.transaction_id);
-  revalidateAll();
-  redirect(back?.startsWith("/") ? back : "/pay");
 }
 
 // ------------------------------------------------------------------ money owed to me
@@ -432,144 +295,121 @@ export async function saveReceivable(_: FormState, fd: FormData): Promise<FormSt
   const id = str(fd, "id");
   const who = str(fd, "who");
   const amount = money(fd, "amount");
-  const status = str(fd, "status");
-  const expected = str(fd, "expected_date");
   if (!who) return { error: "Who owes you?" };
-  if (amount === null || Number.isNaN(amount) || amount <= 0) return { error: "Enter an amount above 0." };
-  if (status && !["waiting", "quoted", "partly_paid", "paid"].includes(status)) return { error: "Unknown status." };
+  if (!amount || Number.isNaN(amount) || amount <= 0) return { error: "Enter an amount above 0." };
   const row = {
     who,
     description: str(fd, "description"),
     amount,
-    status: status ?? "waiting",
-    expected_date: isDate(expected) ? expected : null,
+    status: (str(fd, "status") ?? "waiting") as "waiting" | "quoted" | "partly_paid" | "paid",
+    expected_date: str(fd, "expected_date"),
   };
   const supabase = await createClient();
-  const res = id
-    ? await supabase.from("receivables").update(row).eq("id", id).select("id").single()
-    : await supabase.from("receivables").insert(row).select("id").single();
-  if (res.error) return { error: res.error.message };
+  const { error } = id ? await supabase.from("receivables").update(row).eq("id", id) : await supabase.from("receivables").insert(row);
+  if (error) return { error: error.message };
   revalidateAll();
-  redirect(`/owed/${res.data.id}`);
+  redirect("/receivables");
+}
+
+export async function receivePayment(_: FormState, fd: FormData): Promise<FormState> {
+  const id = str(fd, "receivable_id")!;
+  const amount = money(fd, "amount");
+  const account = str(fd, "to_account_id");
+  const date = str(fd, "date") ?? todayColombo();
+  if (!amount || Number.isNaN(amount) || amount <= 0) return { error: "Enter the amount received." };
+  if (!account) return { error: "Pick the account it went into." };
+  const supabase = await createClient();
+  const { data: rec } = await supabase.from("receivables").select("*").eq("id", id).single();
+  if (!rec) return { error: "Not found." };
+  const { error } = await supabase.from("transactions").insert({
+    kind: "income", amount, to_account_id: account, date, note: `${rec.who}${rec.description ? " · " + rec.description : ""}`, receivable_id: id,
+  });
+  if (error) return { error: error.message };
+  const { data: got } = await supabase.from("transactions").select("amount").eq("receivable_id", id);
+  const received = (got ?? []).reduce((s, t) => s + Number(t.amount), 0);
+  await supabase.from("receivables").update({ status: received >= Number(rec.amount) ? "paid" : "partly_paid" }).eq("id", id);
+  revalidateAll();
+  redirect("/receivables");
 }
 
 export async function deleteReceivable(fd: FormData) {
   const supabase = await createClient();
   await supabase.from("receivables").delete().eq("id", str(fd, "id")!);
   revalidateAll();
-  redirect("/owed");
-}
-
-/** Record money received against something owed to me (an income transaction). */
-export async function receivePayment(_: FormState, fd: FormData): Promise<FormState> {
-  const id = str(fd, "receivable_id");
-  const to = str(fd, "to_account_id");
-  const amount = money(fd, "amount");
-  const date = str(fd, "date");
-  if (!id) return { error: "Missing item." };
-  if (!to) return { error: "Pick the account the money went into." };
-  if (amount === null || Number.isNaN(amount) || amount <= 0) return { error: "Enter an amount above 0." };
-  if (!isDate(date)) return { error: "Pick a date." };
-  const supabase = await createClient();
-  const { data: r } = await supabase.from("receivables").select("who,description,amount").eq("id", id).maybeSingle();
-  if (!r) return { error: "Item not found." };
-
-  const { error } = await supabase.from("transactions").insert({
-    kind: "income",
-    amount,
-    date,
-    to_account_id: to,
-    receivable_id: id,
-    note: r.description ? `${r.who} — ${r.description}` : r.who,
-  });
-  if (error) return { error: error.message };
-
-  const { data: got } = await supabase.from("transactions").select("amount").eq("receivable_id", id);
-  const received = (got ?? []).reduce((s, t) => s + Number(t.amount), 0);
-  await supabase
-    .from("receivables")
-    .update({ status: received >= Number(r.amount) - 0.005 ? "paid" : "partly_paid" })
-    .eq("id", id);
-  revalidateAll();
-  redirect(`/owed/${id}`);
+  redirect("/receivables");
 }
 
 // ------------------------------------------------------------------ reconcile
 
-/**
- * Compare what the bank says with what the app works out. Any difference is
- * booked as an adjustment so the balance matches again.
- */
 export async function reconcile(_: FormState, fd: FormData): Promise<FormState> {
-  const id = str(fd, "account_id");
-  const actualIn = money(fd, "actual_balance");
-  const available = money(fd, "available_credit");
-  if (!id) return { error: "Missing account." };
+  const id = str(fd, "account_id")!;
+  const mode = str(fd, "mode"); // "balance" | "available"
+  const value = money(fd, "value");
+  if (value === null || Number.isNaN(value)) return { error: "Enter the number from your bank app." };
   const supabase = await createClient();
-  const { data: acc } = await supabase.from("account_balances").select("balance,credit_limit,type").eq("id", id).maybeSingle();
+  const { data: acc } = await supabase.from("account_balances").select("*").eq("id", id).single();
   if (!acc) return { error: "Account not found." };
-
-  let actual = actualIn;
-  if (acc.type === "credit_card" && available !== null) {
-    if (Number.isNaN(available)) return { error: "Available credit must be a number." };
-    if (acc.credit_limit === null) return { error: "Set the card's limit first, or enter the balance instead." };
-    actual = round2(-(Number(acc.credit_limit) - available));
+  const computed = Number(acc.balance);
+  let actual = value;
+  if (mode === "available") {
+    if (!acc.credit_limit) return { error: "Set the card's credit limit first." };
+    actual = -(Number(acc.credit_limit) - value);
   }
-  if (actual === null || Number.isNaN(actual)) return { error: "Enter the balance your bank shows." };
-
-  const computed = round2(Number(acc.balance));
-  const diff = round2(actual - computed);
-  let adjustmentId: string | null = null;
-  if (Math.abs(diff) >= 0.01) {
-    const { data, error } = await supabase
+  const diff = Math.round((actual - computed) * 100) / 100;
+  let adjustment: string | null = null;
+  if (diff !== 0) {
+    const { data: txn, error } = await supabase
       .from("transactions")
       .insert({
         kind: "adjustment",
         amount: Math.abs(diff),
-        date: todayColombo(),
-        from_account_id: diff < 0 ? id : null,
         to_account_id: diff > 0 ? id : null,
-        note: "Reconcile",
+        from_account_id: diff < 0 ? id : null,
+        date: todayColombo(),
+        note: "Reconcile adjustment",
       })
       .select("id")
       .single();
     if (error) return { error: error.message };
-    adjustmentId = data.id;
+    adjustment = txn.id;
   }
-  const { error } = await supabase
-    .from("reconciliations")
-    .insert({ account_id: id, actual_balance: actual, computed_balance: computed, adjustment_txn_id: adjustmentId });
-  if (error) return { error: error.message };
+  await supabase.from("reconciliations").insert({ account_id: id, actual_balance: actual, computed_balance: computed, adjustment_txn_id: adjustment });
   revalidateAll();
-  redirect(`/accounts/${id}?reconciled=1`);
+  redirect(`/accounts/${id}?reconciled=${diff}`);
+}
+
+// ------------------------------------------------------------------ settings
+
+export async function saveSetting(fd: FormData) {
+  const key = str(fd, "key")!;
+  const raw = str(fd, "value");
+  const value = raw !== null && !Number.isNaN(Number(raw)) ? Number(raw) : raw;
+  const supabase = await createClient();
+  const { data: auth } = await supabase.auth.getUser();
+  await supabase.from("settings").upsert({ user_id: auth.user!.id, key, value, updated_at: new Date().toISOString() });
+  revalidateAll();
 }
 
 // ------------------------------------------------------------------ push notifications
 
-export async function savePushSubscription(sub: PushSub): Promise<{ error?: string }> {
-  if (!sub?.endpoint || !sub.keys?.p256dh || !sub.keys?.auth) return { error: "Bad subscription." };
+export async function savePushSubscription(sub: { endpoint: string; keys: { p256dh: string; auth: string } }) {
   const supabase = await createClient();
-  const { error } = await supabase
-    .from("push_subscriptions")
-    .upsert({ endpoint: sub.endpoint, p256dh: sub.keys.p256dh, auth: sub.keys.auth }, { onConflict: "endpoint" });
-  return error ? { error: error.message } : {};
+  const { error } = await supabase.from("push_subscriptions").upsert({ endpoint: sub.endpoint, subscription: sub }, { onConflict: "endpoint" });
+  return { ok: !error, error: error?.message };
 }
 
-export async function removePushSubscription(endpoint: string): Promise<void> {
+export async function removePushSubscription(endpoint: string) {
   const supabase = await createClient();
   await supabase.from("push_subscriptions").delete().eq("endpoint", endpoint);
+  return { ok: true };
 }
 
-export async function sendTestPush(): Promise<{ error?: string; sent?: number }> {
+export async function sendTestPush() {
   const supabase = await createClient();
-  const { data, error } = await supabase.from("push_subscriptions").select("endpoint,p256dh,auth");
-  if (error) return { error: error.message };
-  if (!data?.length) return { error: "No device is subscribed yet." };
-  try {
-    const { sent, gone } = await sendToSubscriptions(data, { title: "My Expenses", body: "Notifications are working.", url: "/" });
-    if (gone.length) await supabase.from("push_subscriptions").delete().in("endpoint", gone);
-    return { sent };
-  } catch (e) {
-    return { error: e instanceof Error ? e.message : "Sending failed." };
-  }
+  const { data } = await supabase.from("push_subscriptions").select("subscription");
+  const { sendPush } = await import("@/lib/push");
+  const results = await Promise.all(
+    (data ?? []).map((r) => sendPush(r.subscription, { title: "My Expenses", body: "Notifications are working.", url: "/" })),
+  );
+  return { sent: results.filter((r) => r.ok).length, total: results.length };
 }

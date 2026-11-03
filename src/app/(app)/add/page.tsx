@@ -1,28 +1,37 @@
 import Link from "next/link";
+import { ArrowLeft } from "lucide-react";
 import { getAccounts } from "@/lib/data";
 import { todayColombo } from "@/lib/format";
 import TxnForm from "@/components/TxnForm";
 
 export const dynamic = "force-dynamic";
 
-export default async function AddPage({ searchParams }: { searchParams: Promise<{ saved?: string }> }) {
-  const { saved } = await searchParams;
+export default async function AddPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ saved?: string; kind?: string; to?: string; amount?: string }>;
+}) {
+  const { saved, kind, to, amount } = await searchParams;
   const accounts = await getAccounts();
+  // Salary is paid into Com Bank, so income defaults there.
+  const salaryAccountId = accounts.find((a) => a.type === "bank" && /^com\b/i.test(a.name))?.id;
+  const defaultKind = kind === "income" || kind === "transfer" ? kind : undefined;
   return (
     <div>
-      <h1 className="mb-5 font-serif text-2xl font-medium">Add transaction</h1>
-      {saved && (
-        <p className="mb-4 flex items-center gap-2 rounded-xl bg-in/10 px-3.5 py-2.5 text-sm text-in" role="status">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d="m5 12 5 5L20 7" /></svg>
-          Saved. Add the next one.
-        </p>
-      )}
+      <header className="mb-5 flex items-center gap-3">
+        <Link href="/" className="icon-tile" aria-label="Back"><ArrowLeft size={18} /></Link>
+        <div>
+          <p className="eyebrow">New entry</p>
+          <h1 className="text-xl font-semibold leading-tight">Add Transaction</h1>
+        </div>
+      </header>
+      {saved && <p className="mb-4 rounded-lg bg-in/10 px-3 py-2 text-sm text-in">Saved. Add the next one.</p>}
       {accounts.length === 0 ? (
         <p className="text-sm text-muted">
           Add an account first: <Link href="/accounts/new" className="text-accent underline">new account</Link>.
         </p>
       ) : (
-        <TxnForm key={saved ? Date.now() : "new"} accounts={accounts} today={todayColombo()} />
+        <TxnForm key={saved ? Date.now() : "new"} accounts={accounts} today={todayColombo()} defaultKind={defaultKind} defaultTo={to ?? (defaultKind === "income" ? salaryAccountId : undefined)} salaryAccountId={salaryAccountId} defaultAmount={amount} />
       )}
     </div>
   );
