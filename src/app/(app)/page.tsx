@@ -53,7 +53,7 @@ export default async function Home() {
   // Money you can reach (fixed deposits are locked away), minus what each card
   // needs from you now, minus fixed payments still to pay this month. On a card
   // with instalments, only this month's instalment counts; later ones don't.
-  const spendable = accounts.filter((a) => !isDebtType(a.type) && a.type !== "fd").reduce((t, a) => t + a.balance!, 0);
+  const spendable = accounts.filter((a) => !isDebtType(a.type) && a.type !== "fd" && a.type !== "savings").reduce((t, a) => t + a.balance!, 0);
   const cardsNow = cards
     .map((c) => {
       const mine = plans.filter((p) => p.card_account_id === c.id);
@@ -89,6 +89,7 @@ export default async function Home() {
           <summary className="cursor-pointer text-xs text-muted">How?</summary>
           <dl className="num mt-2 space-y-1.5">
             <Line label="Accounts" value={spendable} />
+            <Line label = "Savings / FD" value={accounts.filter((a) => a.type === "fd" || a.type === "savings").reduce((t, a) => t + a.balance!, 0)} />
             {cardsNow.map((c) => <Line key={c.card.id} label={c.card.name} value={-c.now} />)}
             {fixedLeft > 0 && <Line label="Fixed still to pay" value={-fixedLeft} />}
           </dl>
