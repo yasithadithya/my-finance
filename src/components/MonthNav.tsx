@@ -1,18 +1,17 @@
 import Link from "next/link";
+import { Icon, ICONS } from "@/components/Icons";
 
-const Chevron = ({ d }: { d: string }) => (
-  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-    <path d={d} />
-  </svg>
-);
-
-/** Month title with quiet previous / next buttons on either side. */
+/** Month switcher: a pill with previous / next on either side. */
 export default function MonthNav({ label, prev, next }: { label: string; prev: string; next: string }) {
   return (
-    <div className="flex items-center justify-between">
-      <Link href={prev} className="btn-icon" aria-label="Previous month"><Chevron d="m15 6-6 6 6 6" /></Link>
-      <h1 className="font-serif text-2xl font-medium">{label}</h1>
-      <Link href={next} className="btn-icon" aria-label="Next month"><Chevron d="m9 6 6 6-6 6" /></Link>
+    <div className="mt-4 flex items-center justify-between rounded-full bg-surface p-1">
+      <Link href={prev} className="btn-icon h-10 w-10" aria-label="Previous month">
+        <Icon d="m15 6-6 6 6 6" size={20} />
+      </Link>
+      <span className="text-[0.9375rem] font-semibold">{label}</span>
+      <Link href={next} className="btn-icon h-10 w-10" aria-label="Next month">
+        <Icon d={ICONS.chevron} size={20} />
+      </Link>
     </div>
   );
 }

@@ -1,4 +1,4 @@
-import Link from "next/link";
+import PageHeader from "@/components/PageHeader";
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { getAccounts } from "@/lib/data";
@@ -19,16 +19,15 @@ export default async function EditItemPage({ params }: { params: Promise<{ id: s
   const item = { ...(data as RecurringItem), amount: Number(data.amount) };
 
   return (
-    <div className="space-y-6">
-      <div className="space-y-4">
-        <Link href="/pay/items" className="inline-flex items-center gap-1 text-sm text-muted">‹ Fixed payments</Link>
-        <h1 className="font-serif text-[1.75rem] leading-tight font-medium">{item.name}</h1>
+    <div className="page-in space-y-6">
+      <div className="space-y-5">
+        <PageHeader title={item.name} back={{ href: "/pay/items", label: "Fixed payments" }} />
         <RecurringForm initial={item} accounts={accounts.map(({ id, name }) => ({ id, name }))} />
       </div>
       <form action={deleteRecurringItem}>
         <input type="hidden" name="id" value={item.id} />
         <button className="btn btn-ghost w-full text-out">Delete fixed payment</button>
-        <p className="mt-1.5 text-center text-xs text-muted">Past payments stay in your history. To stop it, untick Active instead.</p>
+        <p className="hint mt-2 text-center">Past payments stay in your history. To stop it, turn off Active instead.</p>
       </form>
     </div>
   );

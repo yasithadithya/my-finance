@@ -1,5 +1,6 @@
 import Amount from "@/components/Amount";
 import Link from "next/link";
+import PageHeader from "@/components/PageHeader";
 import { createClient } from "@/lib/supabase/server";
 import { loadAccounts, toPlan } from "@/lib/data";
 import { unbilled, billedCount, leftToPay } from "@/lib/statements";
@@ -30,16 +31,14 @@ export default async function DebtsPage({ searchParams }: { searchParams: Promis
   const plan = budget > 0 ? planPayoff(debts, plans, budget, method, ym) : null;
 
   return (
-    <div className="space-y-5">
-      <header>
-        <Link href="/" className="inline-flex items-center gap-1 text-sm text-muted">‹ Home</Link>
-        <h1 className="mt-1 font-serif text-[1.75rem] leading-tight font-medium">Debts</h1>
-        <p className="mt-2 text-[2.25rem] font-medium text-out"><Amount value={-totalOwed} /></p>
-        {totalHeld > 0 && <p className="num text-xs text-muted">{lkr(totalHeld)} of it is instalments, billed month by month</p>}
-      </header>
+    <div className="page-in space-y-6">
+      <PageHeader title="Debts" back={{ href: "/", label: "Home" }}>
+        <p className="mt-2 text-[2.5rem] text-out"><Amount value={-totalOwed} /></p>
+        {totalHeld > 0 && <p className="num mt-1 text-[0.8125rem] text-muted">{lkr(totalHeld)} of it is instalments, billed month by month</p>}
+      </PageHeader>
 
       {debtAccounts.length === 0 ? (
-        <p className="card p-4 text-sm">No debts. Nice.</p>
+        <p className="card p-5 text-[0.9375rem]">No debts. Nice.</p>
       ) : (
         <ul className="ledger">
           {debtAccounts.map((a) => {
@@ -48,13 +47,13 @@ export default async function DebtsPage({ searchParams }: { searchParams: Promis
               <li key={a.id}>
                 <Link href={`/accounts/${a.id}`} className="flex items-center justify-between gap-3 px-4 py-3">
                   <span className="min-w-0">
-                    <span className="block truncate">{a.name}</span>
-                    <span className="block truncate text-xs text-muted">
+                    <span className="block truncate text-[0.9375rem] font-medium">{a.name}</span>
+                    <span className="block truncate text-[0.8125rem] text-muted">
                       {a.interest_rate ? `${a.interest_rate}% a year` : "No interest rate set"}
                       {d.balance < -a.balance! - 0.005 && ` · ${lkr(d.balance)} outside instalments`}
                     </span>
                   </span>
-                  <span className="num shrink-0 text-out">{lkr(a.balance)}</span>
+                  <span className="num shrink-0 text-[0.9375rem] font-semibold text-out">{lkr(a.balance)}</span>
                 </Link>
               </li>
             );
@@ -64,10 +63,10 @@ export default async function DebtsPage({ searchParams }: { searchParams: Promis
 
       {plans.length > 0 && (
         <section>
-          <h2 className="mb-2 px-1 text-sm font-medium text-muted">Instalments running</h2>
+          <div className="section-head"><h2>Instalments running</h2></div>
           <ul className="ledger text-sm">
             {plans.map((p) => (
-              <li key={p.id} className="num flex justify-between px-4 py-2.5">
+              <li key={p.id} className="num flex justify-between gap-3 px-4 py-3.5">
                 <span>{p.name} · {billedCount(p, ym)}/{p.months}</span>
                 <span>{lkr(p.monthly_amount)}/mo · {lkr(leftToPay(p, ym))} left</span>
               </li>
@@ -78,15 +77,15 @@ export default async function DebtsPage({ searchParams }: { searchParams: Promis
 
       {debtAccounts.length > 0 && (
         <section className="card p-4">
-          <h2 className="mb-3 font-medium">Payoff planner</h2>
+          <h2 className="mb-3 px-1 text-[1.0625rem] font-semibold">Payoff planner</h2>
           <form className="space-y-3">
             <div>
               <label className="label" htmlFor="budget">I can put this toward debt each month</label>
               <input id="budget" name="budget" inputMode="decimal" defaultValue={sp.budget ?? ""} placeholder="e.g. 25000" className="field num" required />
             </div>
-            <div className="grid grid-cols-2 gap-1 rounded-xl bg-bg p-1 text-sm">
+            <div className="seg grid-cols-2 gap-1 text-sm">
               {(["avalanche", "snowball"] as const).map((m) => (
-                <label key={m} className="cursor-pointer rounded-lg py-2 text-center font-medium text-muted has-checked:bg-surface-2 has-checked:text-text has-checked:ring-1 has-checked:ring-accent/60">
+                <label key={m} className="cursor-pointer rounded-full py-2.5 text-center font-semibold text-muted transition-colors has-checked:bg-accent has-checked:text-on-accent has-focus-visible:outline-2 has-focus-visible:outline-accent">
                   <input type="radio" name="method" value={m} defaultChecked={method === m} className="sr-only" />
                   {m === "avalanche" ? "Highest interest first" : "Smallest first"}
                 </label>

@@ -53,7 +53,7 @@ export default function AccountForm({ initial, today }: { initial?: Account; tod
         <div>
           <label className="label" htmlFor="available_credit">Available credit now (from your bank app)</label>
           <input id="available_credit" name="available_credit" inputMode="decimal" className="field num" />
-          <p className="mt-1.5 text-xs text-muted">Fill this and the app works out what you owe (limit − available). Leave the opening balance blank.</p>
+          <p className="hint mt-1.5">Fill this and the app works out what you owe (limit − available). Leave the opening balance blank.</p>
         </div>
       )}
 
@@ -74,7 +74,7 @@ export default function AccountForm({ initial, today }: { initial?: Account; tod
           <input id="opening_date" name="opening_date" type="date" defaultValue={initial?.opening_date ?? today} className="field" />
         </div>
       </div>
-      <p className="-mt-2 text-xs text-muted">
+      <p className="hint -mt-2">
         {isCard || type === "loan" ? "Money you owe is negative, e.g. −7737.34." : "What the account held on that date."}
       </p>
 
@@ -95,17 +95,19 @@ export default function AccountForm({ initial, today }: { initial?: Account; tod
         </div>
       )}
 
-      <div className="grid grid-cols-2 items-end gap-3">
-        <div>
-          <label className="label" htmlFor="sort_order">Order</label>
-          <input id="sort_order" name="sort_order" inputMode="numeric" defaultValue={initial?.sort_order ?? 0} className="field num" />
-        </div>
-        {editing && (
-          <label className="flex items-center gap-2 pb-3 text-sm">
-            <input type="checkbox" name="archived" defaultChecked={initial?.archived} className="h-4 w-4" /> Archived
-          </label>
-        )}
+      <div>
+        <label className="label" htmlFor="sort_order">Order</label>
+        <input id="sort_order" name="sort_order" inputMode="numeric" defaultValue={initial?.sort_order ?? 0} className="field num" />
       </div>
+      {editing && (
+        <label className="switch-row">
+          <span>
+            <span className="block text-[0.9375rem] font-medium">Archived</span>
+            <span className="block text-[0.8125rem] text-muted">Move it to Archived and leave it out of totals</span>
+          </span>
+          <input type="checkbox" name="archived" defaultChecked={initial?.archived} className="switch" />
+        </label>
+      )}
 
       {state?.error && <p className="text-sm text-out">{state.error}</p>}
       <button className="btn w-full" disabled={pending}>{pending ? "Saving…" : editing ? "Save account" : "Add account"}</button>

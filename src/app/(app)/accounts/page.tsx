@@ -4,10 +4,28 @@ import { lkr } from "@/lib/format";
 import { TYPE_GROUP_LABEL, type AccountType } from "@/lib/types";
 import { signOut } from "@/app/actions";
 import PushToggle from "@/components/PushToggle";
+import PageHeader, { AddAction } from "@/components/PageHeader";
+import { Icon, ICONS, RowChevron } from "@/components/Icons";
 
 export const dynamic = "force-dynamic";
 
 const ORDER: AccountType[] = ["bank", "cash", "savings", "fd", "credit_card", "loan"];
+
+/** Icon and tint for each kind of account. */
+const TYPE_LOOK: Record<AccountType, { icon: string; cls: string }> = {
+  bank: { icon: ICONS.bank, cls: "bg-accent/14 text-accent" },
+  cash: { icon: ICONS.cash, cls: "bg-in/14 text-in" },
+  savings: { icon: ICONS.piggy, cls: "bg-[#9b6bff]/16 text-[#9b6bff]" },
+  fd: { icon: ICONS.lock, cls: "bg-warn/16 text-warn" },
+  credit_card: { icon: ICONS.card, cls: "bg-[#ff7a45]/16 text-[#ff7a45]" },
+  loan: { icon: ICONS.loan, cls: "bg-out/14 text-out" },
+};
+
+const MORE = [
+  { href: "/debts", label: "Debts and payoff plan", icon: ICONS.trend, cls: "bg-out/14 text-out" },
+  { href: "/owed", label: "Money owed to me", icon: ICONS.people, cls: "bg-in/14 text-in" },
+  { href: "/pay/items", label: "Fixed payments", icon: ICONS.repeat, cls: "bg-accent/14 text-accent" },
+];
 
 export default async function AccountsPage() {
   const accounts = await getAccounts({ includeArchived: true });
@@ -15,31 +33,32 @@ export default async function AccountsPage() {
   const archived = accounts.filter((a) => a.archived);
 
   return (
-    <div className="space-y-5">
-      <div className="flex items-center justify-between">
-        <h1 className="font-serif text-[1.75rem] leading-tight font-medium">Accounts</h1>
-        <Link href="/accounts/new" className="btn px-3.5 py-2 text-sm">New account</Link>
-      </div>
+    <div className="page-in space-y-6">
+      <PageHeader title="Accounts" action={<AddAction href="/accounts/new" label="New account" />} />
 
       {ORDER.map((type) => {
         const list = active.filter((a) => a.type === type);
         if (!list.length) return null;
         const total = list.reduce((t, a) => t + a.balance!, 0);
+        const look = TYPE_LOOK[type];
         return (
           <section key={type}>
-            <div className="mb-2 flex justify-between px-1 text-sm text-muted">
-              <h2 className="font-medium">{TYPE_GROUP_LABEL[type]}</h2>
-              <span className="num">{lkr(total)}</span>
+            <div className="section-head">
+              <h2>{TYPE_GROUP_LABEL[type]}</h2>
+              <span className={`aside quiet num ${total < 0 ? "text-out" : ""}`}>{lkr(total)}</span>
             </div>
             <ul className="ledger">
               {list.map((a) => (
                 <li key={a.id}>
-                  <Link href={`/accounts/${a.id}`} className="flex items-center justify-between px-4 py-3">
-                    <span>
-                      {a.name}
-                      {a.institution && <span className="ml-2 text-xs text-muted">{a.institution}</span>}
+                  <Link href={`/accounts/${a.id}`} className="flex items-center gap-3.5 px-4 py-3">
+                    <span className={`avatar ${look.cls}`} aria-hidden>
+                      <Icon d={look.icon} size={19} />
                     </span>
-                    <span className={`num ${a.balance! < 0 ? "text-out" : ""}`}>{lkr(a.balance)}</span>
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate text-[0.9375rem] font-medium">{a.name}</span>
+                      {a.institution && <span className="block truncate text-[0.8125rem] text-muted">{a.institution}</span>}
+                    </span>
+                    <span className={`num shrink-0 text-[0.9375rem] font-semibold ${a.balance! < 0 ? "text-out" : ""}`}>{lkr(a.balance)}</span>
                   </Link>
                 </li>
               ))}
@@ -50,13 +69,13 @@ export default async function AccountsPage() {
 
       {archived.length > 0 && (
         <section>
-          <h2 className="mb-2 px-1 text-sm font-medium text-muted">Archived</h2>
+          <div className="section-head"><h2>Archived</h2></div>
           <ul className="ledger text-muted">
             {archived.map((a) => (
               <li key={a.id}>
-                <Link href={`/accounts/${a.id}`} className="flex items-center justify-between px-4 py-3">
-                  <span>{a.name}</span>
-                  <span className="num">{lkr(a.balance)}</span>
+                <Link href={`/accounts/${a.id}`} className="flex items-center justify-between gap-3 px-4 py-3">
+                  <span className="truncate text-[0.9375rem]">{a.name}</span>
+                  <span className="num text-[0.9375rem]">{lkr(a.balance)}</span>
                 </Link>
               </li>
             ))}
@@ -65,27 +84,34 @@ export default async function AccountsPage() {
       )}
 
       <section>
-        <h2 className="mb-2 px-1 text-sm font-medium text-muted">More</h2>
+        <div className="section-head"><h2>More</h2></div>
         <ul className="ledger">
-          {[
-            { href: "/debts", label: "Debts and payoff plan" },
-            { href: "/owed", label: "Money owed to me" },
-            { href: "/pay/items", label: "Fixed payments" },
-          ].map((l) => (
+          {MORE.map((l) => (
             <li key={l.href}>
-              <Link href={l.href} className="flex items-center justify-between px-4 py-3">
-                <span>{l.label}</span>
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-muted" aria-hidden><path d="m9 6 6 6-6 6" /></svg>
+              <Link href={l.href} className="flex items-center gap-3.5 px-4 py-3">
+                <span className={`avatar ${l.cls}`} aria-hidden>
+                  <Icon d={l.icon} size={19} />
+                </span>
+                <span className="flex-1 text-[0.9375rem] font-medium">{l.label}</span>
+                <RowChevron />
               </Link>
             </li>
           ))}
         </ul>
       </section>
 
-      <PushToggle />
+      <section>
+        <div className="section-head"><h2>Notifications</h2></div>
+        <PushToggle />
+      </section>
 
-      <form action={signOut}>
-        <button className="btn btn-ghost w-full text-sm">Sign out</button>
+      <form action={signOut} className="ledger">
+        <button className="flex w-full items-center gap-3.5 px-4 py-3 text-left text-out active:bg-surface-2">
+          <span className="avatar bg-out/14" aria-hidden>
+            <Icon d={ICONS.logout} size={19} />
+          </span>
+          <span className="text-[0.9375rem] font-medium">Sign out</span>
+        </button>
       </form>
     </div>
   );

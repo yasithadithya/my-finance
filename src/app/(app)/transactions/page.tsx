@@ -5,6 +5,7 @@ import { currentMonth, dayLabel, lkr, monthLabel, monthRange, shiftMonth } from 
 import type { Txn } from "@/lib/types";
 import TxnRow from "@/components/TxnRow";
 import MonthNav from "@/components/MonthNav";
+import PageHeader from "@/components/PageHeader";
 
 /** "Today", "Yesterday" or the weekday name ("Monday"). */
 function weekday(date: string) {
@@ -47,10 +48,12 @@ export default async function TransactionsPage({
   const link = (m: string, acc = account) => `/transactions?month=${m}${acc ? `&account=${acc}` : ""}`;
 
   return (
-    <div className="space-y-5">
-      <MonthNav label={monthLabel(ym)} prev={link(shiftMonth(ym, -1))} next={link(shiftMonth(ym, 1))} />
+    <div className="page-in space-y-6">
+      <PageHeader title="History">
+        <MonthNav label={monthLabel(ym)} prev={link(shiftMonth(ym, -1))} next={link(shiftMonth(ym, 1))} />
+      </PageHeader>
 
-      <div className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1">
+      <div className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1 [scrollbar-width:none]">
         <Link href={link(ym, "")} className="pill" aria-current={!account ? "true" : undefined}>All</Link>
         {accounts.filter((a) => !a.archived).map((a) => (
           <Link key={a.id} href={link(ym, a.id)} className="pill" aria-current={account === a.id ? "true" : undefined}>
@@ -60,18 +63,18 @@ export default async function TransactionsPage({
       </div>
 
       {txns.length === 0 ? (
-        <p className="card p-4 text-sm text-muted">
-          No transactions this month. <Link href="/add" className="text-accent underline">Add one</Link>.
+        <p className="card p-5 text-[0.9375rem] text-muted">
+          No transactions this month. <Link href="/add" className="link">Add one</Link>
         </p>
       ) : (
         [...groups.entries()].map(([date, list]) => (
           <section key={date}>
-            <div className="mb-2 flex items-end justify-between gap-3 px-1">
-              <h2 className="flex items-baseline gap-2">
-                <span className="font-serif text-2xl leading-none font-medium num">{Number(date.slice(8, 10))}</span>
-                <span className="text-sm text-muted">{weekday(date)}</span>
+            <div className="section-head">
+              <h2 className="flex items-baseline gap-1.5">
+                <span className="num text-text">{Number(date.slice(8, 10))}</span>
+                <span>{weekday(date)}</span>
               </h2>
-              {spentOn(list) > 0 && <span className="num text-xs text-muted">Spent {lkr(spentOn(list))}</span>}
+              {spentOn(list) > 0 && <span className="aside quiet num">Spent {lkr(spentOn(list))}</span>}
             </div>
             <ul className="ledger">
               {list.map((t) => <TxnRow key={t.id} t={t} byId={byId} />)}

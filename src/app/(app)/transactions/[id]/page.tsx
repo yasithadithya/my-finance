@@ -6,6 +6,7 @@ import { billedCount, firstStatementMonth, hasInterest, leftToPay, totalPayable 
 import { currentMonth, lkr, monthLabel, shiftMonth, todayColombo } from "@/lib/format";
 import { deletePlan, deleteTxn } from "@/app/actions";
 import TxnForm from "@/components/TxnForm";
+import PageHeader from "@/components/PageHeader";
 import { PlanForm } from "@/components/Forms";
 import type { Txn } from "@/lib/types";
 
@@ -35,12 +36,12 @@ export default async function EditTxnPage({
   const isCharge = !!t.instalment_plan_id;
 
   return (
-    <div className="space-y-6">
-      <h1 className="font-serif text-[1.75rem] leading-tight font-medium">Edit transaction</h1>
+    <div className="page-in space-y-6">
+      <PageHeader title="Edit transaction" back={{ href: `/transactions?month=${t.date.slice(0, 7)}`, label: "History" }} />
 
       {plan && (
         <section className="card p-4">
-          <h2 className="font-medium">On instalments</h2>
+          <h2 className="text-[1.0625rem] font-semibold">On instalments</h2>
           <p className="num mt-1 text-sm">
             {plan.months} × {lkr(plan.monthly_amount)}
             {hasInterest(plan) ? ` at ${plan.interest_rate}% a year (${lkr(totalPayable(plan))} in all)` : ", no interest"}
@@ -53,7 +54,7 @@ export default async function EditTxnPage({
             The full amount stays on the card as debt. Each month counts only its instalment, and it shows on the Pay tab until the plan ends.
           </p>
           <div className="mt-3 flex gap-4 text-sm">
-            <Link href={`/accounts/${plan.card_account_id}?plan=${plan.id}#plans`} className="text-accent">Edit plan</Link>
+            <Link href={`/accounts/${plan.card_account_id}?plan=${plan.id}#plans`} className="link">Edit plan</Link>
             <form action={deletePlan}>
               <input type="hidden" name="id" value={plan.id} />
               <input type="hidden" name="back" value={`/transactions/${t.id}`} />
@@ -66,7 +67,7 @@ export default async function EditTxnPage({
       {canConvert && !plan && (
         sp.convert ? (
           <section id="convert" className="card p-4">
-            <h2 className="mb-1 font-medium">Convert to instalments</h2>
+            <h2 className="mb-1 px-1 text-[1.0625rem] font-semibold">Convert to instalments</h2>
             <p className="mb-3 text-xs text-muted">The debt on {card!.name} stays as it is. Each statement bills one instalment.</p>
             <PlanForm
               cardId={card!.id}
@@ -80,11 +81,11 @@ export default async function EditTxnPage({
       )}
 
       {t.kind === "adjustment" ? (
-        <p className="text-sm text-muted">Adjustments come from reconciling and can only be deleted.</p>
+        <p className="card p-5 text-[0.9375rem] text-muted">Adjustments come from reconciling and can only be deleted.</p>
       ) : isCharge ? (
-        <p className="text-sm text-muted">
+        <p className="card p-5 text-[0.9375rem] text-muted">
           This is the monthly interest of an instalment plan. The app books it on the statement day.{" "}
-          <Link href={`/accounts/${t.from_account_id}#plans`} className="text-accent underline">Change the plan</Link> to change it.
+          <Link href={`/accounts/${t.from_account_id}#plans`} className="link">Change the plan</Link> to change it.
         </p>
       ) : (
         <TxnForm accounts={accounts} today={todayColombo()} initial={t} />

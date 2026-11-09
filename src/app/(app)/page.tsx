@@ -17,6 +17,7 @@ import TxnRow from "@/components/TxnRow";
 import Reminders, { StatusChip } from "@/components/Reminders";
 import Amount from "@/components/Amount";
 import MonthRunway from "@/components/MonthRunway";
+import { Icon, ICONS } from "@/components/Icons";
 
 export const dynamic = "force-dynamic";
 
@@ -73,44 +74,55 @@ export default async function Home() {
   const dueInstalments = instalmentsDueIn(ym, plans, cards, statements, marks);
 
   return (
-    <div className="space-y-6">
-      <section className="panel">
-        <h1 className="text-sm font-medium text-muted">Can spend now</h1>
-        <p className={`mt-2 text-[2.5rem] font-medium ${canSpend < 0 ? "text-out" : "text-accent"}`}>
+    <div className="page-in space-y-6">
+      {/* Viewing area: the one number that matters, with room to breathe. */}
+      <section className="px-1 pt-[clamp(2.5rem,10vh,5.5rem)]">
+        <h1 className="text-[0.9375rem] font-semibold text-muted">Can spend now</h1>
+        <p className={`mt-1.5 text-[2.875rem] ${canSpend < 0 ? "text-out" : ""}`}>
           <Amount value={canSpend} />
         </p>
 
-        <Link href="/debts" className="num mt-1 flex items-baseline gap-2 text-sm">
-          <span className="text-muted">Net position</span>
-          <span className={`font-medium ${net < 0 ? "text-out" : ""}`}>{lkr(net)}</span>
-        </Link>
-
-        <details className="mt-2 text-sm">
-          <summary className="cursor-pointer text-xs text-muted">How?</summary>
-          <dl className="num mt-2 space-y-1.5">
-            <Line label="Accounts" value={spendable} />
-            <Line label = "Savings / FD" value={accounts.filter((a) => a.type === "fd" || a.type === "savings").reduce((t, a) => t + a.balance!, 0)} />
-            {cardsNow.map((c) => <Line key={c.card.id} label={c.card.name} value={-c.now} />)}
-            {fixedLeft > 0 && <Line label="Fixed still to pay" value={-fixedLeft} />}
-          </dl>
-        </details>
-
-        <div className="mt-5">
-          <MonthRunway ym={ym} today={today} bills={statements} fixed={checklist} cards={cards} instalments={dueInstalments} animate />
+        <input type="checkbox" id="how" className="peer sr-only" aria-controls="how-breakdown" />
+        <div className="mt-4 flex flex-wrap items-center gap-2 peer-checked:[&_.chev]:rotate-180 peer-focus-visible:[&_label]:outline-2 peer-focus-visible:[&_label]:outline-accent">
+          <Link href="/debts" className="tonal-pill num">
+            <span className="text-muted">Net position</span>
+            <span className={`font-semibold ${net < 0 ? "text-out" : ""}`}>{lkr(net)}</span>
+            <Icon d={ICONS.chevron} size={14} className="text-muted" />
+          </Link>
+          <label htmlFor="how" className="tonal-pill cursor-pointer font-medium text-accent">
+            How?
+            <Icon d={ICONS.chevronDown} size={14} className="chev transition-transform" />
+          </label>
         </div>
+        <dl id="how-breakdown" className="num card mt-3 hidden space-y-2.5 p-4 text-[0.9375rem] peer-checked:block">
+          <Line label="Accounts" value={spendable} />
+          <Line label = "Savings / FD" value={accounts.filter((a) => a.type === "fd" || a.type === "savings").reduce((t, a) => t + a.balance!, 0)} />
+          {cardsNow.map((c) => <Line key={c.card.id} label={c.card.name} value={-c.now} />)}
+          {fixedLeft > 0 && <Line label="Fixed still to pay" value={-fixedLeft} />}
+        </dl>
+      </section>
 
-        <dl className="num mt-4 grid grid-cols-3 gap-x-3 border-t border-line pt-3 text-sm">
-          <Stat label={`In · ${monthLabel(ym).split(" ")[0]}`} value={lkr(thisMonth.moneyIn)} tone="text-in" />
+      {/* Interaction area */}
+      <section className="panel">
+        <div className="flex items-center justify-between">
+          <h2 className="text-[0.9375rem] font-semibold">{monthLabel(ym).split(" ")[0]}</h2>
+          <Link href={`/pay?month=${ym}`} className="link text-sm">Pay</Link>
+        </div>
+        <dl className="num mt-3 grid grid-cols-3 gap-x-3">
+          <Stat label="In" value={lkr(thisMonth.moneyIn)} tone="text-in" />
           <Stat label="Out" value={lkr(-thisMonth.out)} />
           <Stat label="Left" value={lkr(thisMonth.left)} tone={thisMonth.left < 0 ? "text-out" : ""} />
         </dl>
+        <div className="mt-5">
+          <MonthRunway ym={ym} today={today} bills={statements} fixed={checklist} cards={cards} instalments={dueInstalments} animate />
+        </div>
       </section>
 
       <Reminders items={reminders} />
 
       {accounts.length === 0 && (
-        <div className="card p-4 text-sm">
-          No accounts yet. <Link href="/accounts/new" className="text-accent underline">Add one</Link>.
+        <div className="card p-5 text-[0.9375rem]">
+          No accounts yet. <Link href="/accounts/new" className="link">Add one</Link>
         </div>
       )}
 
@@ -128,10 +140,10 @@ export default async function Home() {
       <section>
         <div className="section-head">
           <h2>Recent</h2>
-          <Link href="/transactions">All</Link>
+          <Link href="/transactions">See all</Link>
         </div>
         {(recentRes.data ?? []).length === 0 ? (
-          <p className="card p-4 text-sm text-muted">Nothing yet. Tap + to add one.</p>
+          <p className="card p-5 text-[0.9375rem] text-muted">Nothing yet. Tap + to add one.</p>
         ) : (
           <ul className="ledger">
             {(recentRes.data as Txn[]).map((t) => <TxnRow key={t.id} t={t} byId={byId} />)}
@@ -167,8 +179,8 @@ function Line({ label, value }: { label: string; value: number }) {
 function Stat({ label, value, tone = "" }: { label: string; value: string; tone?: string }) {
   return (
     <div className="min-w-0">
-      <dt className="text-xs text-muted">{label}</dt>
-      <dd className={`truncate font-medium ${tone}`}>{value}</dd>
+      <dt className="text-[0.75rem] font-medium text-muted">{label}</dt>
+      <dd className={`truncate text-[0.9375rem] font-semibold ${tone}`}>{value}</dd>
     </div>
   );
 }
@@ -180,12 +192,12 @@ function CardRow({ card, bill }: { card: Account; bill?: StatementView }) {
   const bar = pct >= 80 ? "bg-out" : pct >= 50 ? "bg-warn" : "bg-accent";
   return (
     <li>
-      <Link href={`/accounts/${card.id}`} className="block px-4 py-3">
+      <Link href={`/accounts/${card.id}`} className="block px-4 py-3.5">
         <div className="flex items-center justify-between gap-3">
-          <span className="font-medium">{card.name}</span>
+          <span className="text-[0.9375rem] font-semibold">{card.name}</span>
           {bill && <StatusChip status={bill.status} days={bill.days_left} />}
         </div>
-        <div className="num mt-1 flex justify-between text-xs text-muted">
+        <div className="num mt-1 flex justify-between text-[0.8125rem] text-muted">
           <span>{bill && bill.status !== "paid" ? `Bill ${lkr(bill.remaining)} · ${shortDate(bill.due_date)}` : `Owes ${lkr(owed)}`}</span>
           {limit > 0 && <span>{pct}%</span>}
         </div>

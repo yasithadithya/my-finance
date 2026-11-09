@@ -1,5 +1,6 @@
 import Amount from "@/components/Amount";
 import Link from "next/link";
+import PageHeader from "@/components/PageHeader";
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { loadAccounts } from "@/lib/data";
@@ -33,20 +34,18 @@ export default async function OwedItemPage({
   const into = accounts.filter((a) => !a.archived && !isDebtType(a.type)).map(({ id, name }) => ({ id, name }));
 
   return (
-    <div className="space-y-6">
-      <header>
-        <Link href="/owed" className="inline-flex items-center gap-1 text-sm text-muted">‹ Owed to me</Link>
-        <h1 className="mt-1 font-serif text-[1.75rem] leading-tight font-medium">{r.who}</h1>
-        {r.description && <p className="text-sm text-muted">{r.description}</p>}
-        <p className="mt-2 text-[2.25rem] font-medium text-in"><Amount value={r.outstanding} /></p>
-        <p className="num text-xs text-muted">
+    <div className="page-in space-y-6">
+      <PageHeader title={r.who} back={{ href: "/owed", label: "Owed to me" }}>
+        {r.description && <p className="mt-1 text-[0.9375rem] text-muted">{r.description}</p>}
+        <p className="mt-2 text-[2.5rem] text-in"><Amount value={r.outstanding} /></p>
+        <p className="num mt-1 text-[0.8125rem] text-muted">
           {RECEIVABLE_STATUS_LABEL[r.shown_status]} · {lkr(r.received)} received of {lkr(r.amount)}
         </p>
-      </header>
+      </PageHeader>
 
       {r.outstanding > 0 && into.length > 0 && (
         <section className="card p-4">
-          <h2 className="mb-3 font-medium">Got paid?</h2>
+          <h2 className="mb-3 px-1 text-[1.0625rem] font-semibold">Got paid?</h2>
           <ReceiveForm id={r.id} outstanding={r.outstanding} accounts={into} today={todayColombo()} />
         </section>
       )}
@@ -61,7 +60,7 @@ export default async function OwedItemPage({
 
       {(txRes.data ?? []).length > 0 && (
         <section>
-          <h2 className="mb-2 px-1 text-sm font-medium text-muted">Received</h2>
+          <div className="section-head"><h2>Received</h2></div>
           <ul className="ledger">
             {(txRes.data as Txn[]).map((t) => <TxnRow key={t.id} t={t} byId={byId} />)}
           </ul>

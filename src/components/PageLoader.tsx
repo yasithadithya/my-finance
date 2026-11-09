@@ -10,7 +10,7 @@ export default function PageLoader({
   chips?: boolean;
 }) {
   return (
-    <div className="loader space-y-6" role="status" aria-live="polite">
+    <div className="loader space-y-6 pt-10" role="status" aria-live="polite">
       <div className="flex flex-col items-center gap-3 pt-6 pb-2">
         <div className="coins" aria-hidden>
           <span className="coin-shadow" />
@@ -49,8 +49,12 @@ function Rows({ n }: { n: number }) {
   return (
     <div className="ledger">
       {Array.from({ length: n }, (_, i) => (
-        <div key={i} className="flex items-center justify-between px-4 py-3.5">
-          <Bar className="h-3.5" w={ROW_WIDTHS[i % ROW_WIDTHS.length]} />
+        <div key={i} className="flex items-center gap-3.5 px-4 py-3.5">
+          <Bar className="h-10 w-10 shrink-0 rounded-full" />
+          <div className="flex-1 space-y-2">
+            <Bar className="h-3.5" w={ROW_WIDTHS[i % ROW_WIDTHS.length]} />
+            <Bar className="h-2.5" w={ROW_WIDTHS[(i + 2) % ROW_WIDTHS.length] - 2} />
+          </div>
           <Bar className="h-3.5 w-16" />
         </div>
       ))}
@@ -61,26 +65,21 @@ function Rows({ n }: { n: number }) {
 function Dashboard() {
   return (
     <>
-      <div className="panel space-y-3">
+      <div className="space-y-3 px-1">
         <Bar className="h-3 w-24" />
-        <Bar className="h-10 w-52" />
-        <Bar className="h-3 w-40" />
-        <Bar className="mt-6 h-4 w-full" />
-        <div className="grid grid-cols-2 gap-3 pt-4">
-          {[0, 1, 2, 3].map((i) => (
+        <Bar className="h-11 w-56" />
+        <Bar className="h-8 w-40 rounded-full" />
+      </div>
+      <div className="panel space-y-4">
+        <div className="grid grid-cols-3 gap-3">
+          {[0, 1, 2].map((i) => (
             <div key={i} className="space-y-1.5">
-              <Bar className="h-2.5 w-16" />
-              <Bar className="h-3 w-24" />
+              <Bar className="h-2.5 w-12" />
+              <Bar className="h-3.5 w-20" />
             </div>
           ))}
         </div>
-      </div>
-      <div className="card space-y-3 p-4">
-        <div className="flex justify-between">
-          <Bar className="h-4 w-28" />
-          <Bar className="h-4 w-20" />
-        </div>
-        <Bar className="h-1.5 w-full rounded-full" />
+        <Bar className="h-5 w-full" />
       </div>
       <Rows n={3} />
     </>
@@ -90,14 +89,11 @@ function Dashboard() {
 function List({ chips }: { chips: boolean }) {
   return (
     <>
-      <div className="flex items-center justify-between">
-        <Bar className="h-6 w-36" />
-        <Bar className="h-9 w-16 rounded-xl" />
-      </div>
+      <Bar className="ml-1 h-8 w-40" />
       {chips && (
         <div className="flex gap-2">
           {[3, 5.5, 4.5, 5].map((w, i) => (
-            <Bar key={i} className="h-7 rounded-full" w={w} />
+            <Bar key={i} className="h-9 rounded-full" w={w} />
           ))}
         </div>
       )}
@@ -110,15 +106,14 @@ function List({ chips }: { chips: boolean }) {
 function Detail() {
   return (
     <>
-      <div className="space-y-2">
-        <Bar className="h-3 w-16" />
-        <Bar className="h-6 w-40" />
-        <Bar className="h-8 w-32" />
+      <div className="space-y-2.5 px-1">
+        <Bar className="h-8 w-44" />
+        <Bar className="h-10 w-36" />
+        <Bar className="h-3 w-48" />
       </div>
-      <div className="card space-y-4 p-4">
-        <Bar className="h-4 w-32" />
-        <Bar className="h-11 w-full rounded-xl" />
-        <Bar className="h-11 w-full rounded-xl" />
+      <div className="grid grid-cols-2 gap-2">
+        <Bar className="h-12 rounded-full" />
+        <Bar className="h-12 rounded-full" />
       </div>
       <Rows n={3} />
     </>
@@ -128,15 +123,15 @@ function Detail() {
 function Form() {
   return (
     <>
-      <Bar className="h-6 w-44" />
+      <Bar className="ml-1 h-8 w-48" />
       <div className="space-y-4">
         {[0, 1, 2, 3].map((i) => (
           <div key={i} className="space-y-2">
-            <Bar className="h-3 w-20" />
-            <Bar className="h-11 w-full rounded-xl" />
+            <Bar className="ml-1 h-3 w-20" />
+            <Bar className="h-12 w-full rounded-2xl" />
           </div>
         ))}
-        <Bar className="h-12 w-full rounded-2xl" />
+        <Bar className="h-12 w-full rounded-full" />
       </div>
     </>
   );

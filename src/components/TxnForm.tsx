@@ -66,10 +66,10 @@ export default function TxnForm({
       {initial && <input type="hidden" name="id" value={initial.id} />}
       <input type="hidden" name="kind" value={kind} />
 
-      <div className="relative grid grid-cols-3 rounded-xl bg-surface p-1" role="radiogroup" aria-label="Type">
+      <div className="seg grid-cols-3 bg-surface" role="radiogroup" aria-label="Type">
         <span
           aria-hidden
-          className="absolute inset-y-1 left-1 w-[calc((100%-0.5rem)/3)] rounded-lg bg-surface-2 ring-1 ring-accent/60 transition-transform duration-200 ease-out motion-reduce:transition-none"
+          className="seg-thumb w-[calc((100%-0.5rem)/3)] bg-accent shadow-none"
           style={{ transform: `translateX(${KINDS.findIndex((k) => k.value === kind) * 100}%)` }}
         />
         {KINDS.map((k) => (
@@ -79,17 +79,17 @@ export default function TxnForm({
             role="radio"
             aria-checked={kind === k.value}
             onClick={() => setKind(k.value)}
-            className={`relative rounded-lg py-2 text-sm font-medium transition-colors ${kind === k.value ? "text-text" : "text-muted"}`}
+            className={`relative rounded-full py-2.5 text-[0.9375rem] font-semibold transition-colors ${kind === k.value ? "text-on-accent" : "text-muted"}`}
           >
             {k.label}
           </button>
         ))}
       </div>
 
-      <div className="py-2">
-        <label className="label" htmlFor="amount">Amount</label>
-        <div className="flex items-baseline gap-3 border-b-2 border-line pb-2 transition-colors focus-within:border-accent">
-          <span className="text-lg font-medium text-muted">Rs</span>
+      <div className="card px-4 pt-5 pb-6 text-center">
+        <label className="text-[0.8125rem] font-semibold text-muted" htmlFor="amount">Amount</label>
+        <div className="mt-2 flex items-baseline justify-center gap-2">
+          <span className="text-xl font-semibold text-muted">Rs</span>
           <input
             ref={amountRef}
             id="amount"
@@ -98,7 +98,7 @@ export default function TxnForm({
             autoComplete="off"
             placeholder="0.00"
             defaultValue={initial ? Number(initial.amount).toFixed(2) : ""}
-            className={`money w-full min-w-0 bg-transparent text-[2.75rem] font-medium outline-none placeholder:text-surface-2 ${
+            className={`money [field-sizing:content] min-w-[4ch] max-w-full bg-transparent text-center text-[2.75rem] outline-none placeholder:text-muted/35 ${
               kind === "income" ? "text-in" : ""
             }`}
             required
@@ -122,7 +122,7 @@ export default function TxnForm({
             {options}
           </select>
           {kind === "transfer" && (
-            <p className="mt-1.5 text-xs text-muted">Paying a card? From = the bank account, To = the card.</p>
+            <p className="hint mt-1.5">Paying a card? From = the bank account, To = the card.</p>
           )}
         </div>
       )}
@@ -139,7 +139,7 @@ export default function TxnForm({
 
       {state?.error && <p className="text-sm text-out">{state.error}</p>}
 
-      <div className={editing ? "" : "grid grid-cols-2 gap-2"}>
+      <div className={editing ? "pt-2" : "grid grid-cols-2 gap-2 pt-2"}>
         <button className="btn w-full" disabled={pending}>{pending ? "Saving…" : editing ? "Save changes" : "Save"}</button>
         {!editing && (
           <button className="btn btn-ghost w-full" name="again" value="1" disabled={pending}>

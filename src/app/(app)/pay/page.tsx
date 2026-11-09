@@ -17,6 +17,8 @@ import { StatusChip } from "@/components/Reminders";
 import Amount from "@/components/Amount";
 import MonthRunway from "@/components/MonthRunway";
 import MonthNav from "@/components/MonthNav";
+import PageHeader from "@/components/PageHeader";
+import { Icon, ICONS } from "@/components/Icons";
 
 export const dynamic = "force-dynamic";
 
@@ -56,22 +58,24 @@ export default async function PayPage({ searchParams }: { searchParams: Promise<
   const ticked = fixedDone + instalments.filter((i) => i.mark).reduce((s, i) => s + i.amount, 0);
 
   return (
-    <div className="space-y-5">
-      <MonthNav label={monthLabel(ym)} prev={`/pay?month=${shiftMonth(ym, -1)}`} next={`/pay?month=${shiftMonth(ym, 1)}`} />
+    <div className="page-in space-y-6">
+      <PageHeader title="Pay" action={<Link href="/pay/items" className="link px-2 text-sm">Manage</Link>}>
+        <MonthNav label={monthLabel(ym)} prev={`/pay?month=${shiftMonth(ym, -1)}`} next={`/pay?month=${shiftMonth(ym, 1)}`} />
+      </PageHeader>
 
       <section className="panel">
-        <p className="text-sm text-muted">Still to pay</p>
-        <p className="mt-2 text-[2.25rem] font-medium">
+        <p className="text-[0.8125rem] font-semibold text-muted">Still to pay</p>
+        <p className="mt-1.5 text-[2.375rem]">
           <Amount value={fixedLeft + billsLeft + instalmentsLeft} />
         </p>
         <div className="mt-5">
           <MonthRunway ym={ym} today={today} bills={statements} fixed={checklist} cards={cards} instalments={instalments} />
         </div>
-        <dl className="num mt-4 grid grid-cols-2 gap-3 border-t border-line pt-4 text-sm">
-          <div className="min-w-0"><dt className="text-xs text-muted">Card bills</dt><dd className="truncate">{lkr(billsLeft)}</dd></div>
-          <div className="min-w-0"><dt className="text-xs text-muted">Instalments not billed yet</dt><dd className="truncate">{lkr(instalmentsLeft)}</dd></div>
-          <div className="min-w-0"><dt className="text-xs text-muted">Fixed</dt><dd className="truncate">{lkr(fixedLeft)}</dd></div>
-          <div className="min-w-0"><dt className="text-xs text-muted">Ticked</dt><dd className="truncate text-in">{lkr(ticked)}</dd></div>
+        <dl className="num mt-4 grid grid-cols-2 gap-2">
+          <PayStat label="Card bills" value={lkr(billsLeft)} />
+          <PayStat label="Instalments not billed yet" value={lkr(instalmentsLeft)} />
+          <PayStat label="Fixed" value={lkr(fixedLeft)} />
+          <PayStat label="Ticked" value={lkr(ticked)} tone="text-in" />
         </dl>
       </section>
 
@@ -83,8 +87,8 @@ export default async function PayPage({ searchParams }: { searchParams: Promise<
               <InstalmentRow key={`${i.plan.id}-${i.statement_date}`} i={i} today={today} ym={ym} payFrom={payFrom} />
             ))}
           </ul>
-          <p className="mt-2 px-1 text-xs text-muted">
-            Must be paid each month until the plan ends. Tap <strong>D</strong> to mark one paid: pick the bank account to record the
+          <p className="hint mt-2 px-3">
+            Must be paid each month until the plan ends. Tap the circle to mark one paid: pick the bank account to record the
             payment into the card, or &ldquo;Just tick&rdquo; if you paid it with the whole card bill. Paying the full card bill also marks it paid.
           </p>
         </section>
@@ -92,18 +96,18 @@ export default async function PayPage({ searchParams }: { searchParams: Promise<
 
       <section>
         <div className="section-head"><h2>Card bills</h2></div>
-        {bills.length === 0 && cards.length === 0 && <p className="text-sm text-muted">No credit cards.</p>}
+        {bills.length === 0 && cards.length === 0 && <p className="card p-5 text-[0.9375rem] text-muted">No credit cards.</p>}
         {bills.length > 0 && (
           <ul className="ledger">
             {bills.map((s) => <BillRow key={s.id} s={s} payFrom={payFrom} today={today} ym={ym} />)}
           </ul>
         )}
         {ym === now && cardsWithoutBill.length > 0 && (
-          <p className="mt-2 text-xs text-muted">
+          <p className="hint mt-2 px-3">
             No bill yet for {cardsWithoutBill.map((c, i) => (
               <span key={c.id}>
                 {i > 0 && ", "}
-                <Link href={`/accounts/${c.id}#statements`} className="text-accent underline">{c.name}</Link>
+                <Link href={`/accounts/${c.id}#statements`} className="link">{c.name}</Link>
               </span>
             ))}
             . Statements appear on their statement day; add an older one from the card page.
@@ -117,8 +121,8 @@ export default async function PayPage({ searchParams }: { searchParams: Promise<
           <Link href="/pay/items">Manage</Link>
         </div>
         {checklist.length === 0 ? (
-          <p className="text-sm text-muted">
-            No fixed payments. <Link href="/pay/items/new" className="text-accent underline">Add one</Link>.
+          <p className="card p-5 text-[0.9375rem] text-muted">
+            No fixed payments. <Link href="/pay/items/new" className="link">Add one</Link>
           </p>
         ) : (
           <ul className="ledger">
@@ -126,6 +130,19 @@ export default async function PayPage({ searchParams }: { searchParams: Promise<
           </ul>
         )}
       </section>
+    </div>
+  );
+}
+
+function Check() {
+  return <Icon d={ICONS.check} size={18} strokeWidth={2.6} />;
+}
+
+function PayStat({ label, value, tone = "" }: { label: string; value: string; tone?: string }) {
+  return (
+    <div className="min-w-0 rounded-2xl bg-surface-2 px-3.5 py-3">
+      <dt className="truncate text-[0.75rem] font-medium text-muted">{label}</dt>
+      <dd className={`truncate text-[0.9375rem] font-semibold ${tone}`}>{value}</dd>
     </div>
   );
 }
@@ -141,8 +158,8 @@ function InstalmentRow({ i, today, ym, payFrom }: { i: InstalmentDue; today: str
   const back = `/pay?month=${ym}`;
   const info = (
     <span className="min-w-0">
-      <span className={`block truncate ${paid ? "text-muted line-through" : "font-medium"}`}>{i.plan.name}</span>
-      <span className={`block truncate text-xs ${late ? "text-out" : "text-muted"}`}>
+      <span className={`block truncate text-[0.9375rem] font-medium ${paid ? "text-muted line-through" : ""}`}>{i.plan.name}</span>
+      <span className={`block truncate text-[0.8125rem] ${late ? "text-out" : "text-muted"}`}>
         {i.no} of {i.plan.months} · {i.card.name}
         {i.bill
           ? `, on the ${shortDate(i.statement_date)} bill`
@@ -156,15 +173,15 @@ function InstalmentRow({ i, today, ym, payFrom }: { i: InstalmentDue; today: str
   // Ticked: tap the filled D to undo.
   if (i.mark) {
     return (
-      <li className="flex items-center justify-between gap-3 px-4 py-3">
+      <li className="flex items-center justify-between gap-3 px-4 py-3.5">
         {info}
         <span className="flex items-center gap-3">
           <span className="num text-muted">{lkr(i.amount)}</span>
           <form action={unmarkInstalment}>
             <input type="hidden" name="mark_id" value={i.mark.id} />
             <input type="hidden" name="back" value={back} />
-            <button className="grid h-9 w-9 place-items-center rounded-full bg-accent text-sm font-bold text-on-accent transition-transform active:scale-90" aria-label={`Undo ${i.plan.name}`} title="Tap to undo">
-              D
+            <button className="tick on" aria-label={`Undo ${i.plan.name}`} title="Tap to undo">
+              <Check />
             </button>
           </form>
         </span>
@@ -175,7 +192,7 @@ function InstalmentRow({ i, today, ym, payFrom }: { i: InstalmentDue; today: str
   // Paid through the full card bill: nothing to tick.
   if (paid) {
     return (
-      <li className="flex items-center justify-between gap-3 px-4 py-3">
+      <li className="flex items-center justify-between gap-3 px-4 py-3.5">
         {info}
         <span className="flex flex-col items-end gap-1">
           <span className="num text-muted">{lkr(i.amount)}</span>
@@ -185,16 +202,15 @@ function InstalmentRow({ i, today, ym, payFrom }: { i: InstalmentDue; today: str
     );
   }
 
-  const ring =
-    "grid h-9 w-9 place-items-center rounded-full border-2 border-dashed border-accent/50 text-sm font-bold text-accent/70 transition-colors hover:border-accent hover:text-accent active:scale-90";
+  const ring = "tick";
   return (
-    <li className="px-4 py-3">
+    <li className="px-4 py-3.5">
       <details>
         <summary className="flex cursor-pointer list-none items-center justify-between gap-3">
           {info}
           <span className="flex items-center gap-3">
-            <span className="num">{lkr(i.amount)}</span>
-            <span className={ring}>D</span>
+            <span className="num font-semibold">{lkr(i.amount)}</span>
+            <span className={ring}><Check /></span>
           </span>
         </summary>
         <form action={markInstalment} className="mt-3 grid grid-cols-2 gap-2">
@@ -217,17 +233,17 @@ function InstalmentRow({ i, today, ym, payFrom }: { i: InstalmentDue; today: str
 
 function BillRow({ s, payFrom, today, ym }: { s: StatementView; payFrom: Account[]; today: string; ym: string }) {
   return (
-    <li className="px-4 py-3">
+    <li className="px-4 py-3.5">
       <div className="flex items-center justify-between gap-3">
         <span className="min-w-0">
-          <span className="block truncate font-medium">{s.card_name}</span>
-          <span className="block text-xs text-muted">
+          <span className="block truncate text-[0.9375rem] font-semibold">{s.card_name}</span>
+          <span className="block text-[0.8125rem] text-muted">
             Due {shortDate(s.due_date)}, statement {shortDate(s.statement_date)}
             {s.instalments > 0 && <>. Includes {lkr(s.instalments)} instalment</>}
           </span>
         </span>
         <span className="flex flex-col items-end gap-1">
-          <span className="num">{lkr(s.status === "paid" ? s.statement_balance : s.remaining)}</span>
+          <span className="num text-[0.9375rem] font-semibold">{lkr(s.status === "paid" ? s.statement_balance : s.remaining)}</span>
           <StatusChip status={s.status} days={s.days_left} />
         </span>
       </div>
@@ -236,8 +252,8 @@ function BillRow({ s, payFrom, today, ym }: { s: StatementView; payFrom: Account
       )}
       {s.status !== "paid" && payFrom.length > 0 && (
         <details className="mt-2">
-          <summary className="cursor-pointer text-sm font-medium text-accent">Pay this bill</summary>
-          <form action={payStatement} className="mt-2 grid grid-cols-2 gap-2">
+          <summary className="btn btn-tonal btn-sm mt-1 cursor-pointer">Pay this bill</summary>
+          <form action={payStatement} className="mt-3 grid grid-cols-2 gap-2">
             <input type="hidden" name="card_id" value={s.account_id} />
             <input type="hidden" name="note" value={`${s.card_name} bill`} />
             <input type="hidden" name="back" value={`/pay?month=${ym}`} />
@@ -274,8 +290,8 @@ function ItemRow({
   const late = !item.mark && item.due_day && ym === now && dayIn(ym, item.due_day) < today;
   const info = (
     <span className="min-w-0">
-      <span className={`block truncate ${item.mark ? "text-muted line-through" : ""}`}>{item.name}</span>
-      <span className={`block truncate text-xs ${late ? "text-out" : "text-muted"}`}>
+      <span className={`block truncate text-[0.9375rem] font-medium ${item.mark ? "text-muted line-through" : ""}`}>{item.name}</span>
+      <span className={`block truncate text-[0.8125rem] ${late ? "text-out" : "text-muted"}`}>
         {item.due_day ? `Due the ${ordinal(item.due_day)}` : "Any day"}
         {from ? `, from ${from.name}` : ""}
       </span>
@@ -284,15 +300,15 @@ function ItemRow({
 
   if (item.mark) {
     return (
-      <li className="flex items-center justify-between gap-3 px-4 py-3">
+      <li className="flex items-center justify-between gap-3 px-4 py-3.5">
         {info}
         <span className="flex items-center gap-3">
           <span className="num text-muted">{lkr(item.amount)}</span>
           <form action={untickRecurring}>
             <input type="hidden" name="mark_id" value={item.mark.id} />
             <input type="hidden" name="month" value={ym} />
-            <button className="grid h-9 w-9 place-items-center rounded-full bg-accent text-sm font-bold text-on-accent transition-transform active:scale-90" aria-label={`Undo ${item.name}`} title="Tap to undo">
-              D
+            <button className="tick on" aria-label={`Undo ${item.name}`} title="Tap to undo">
+              <Check />
             </button>
           </form>
         </span>
@@ -306,22 +322,21 @@ function ItemRow({
       <input type="hidden" name="month" value={ym} />
     </>
   );
-  const ring =
-    "grid h-9 w-9 place-items-center rounded-full border-2 border-dashed border-accent/50 text-sm font-bold text-accent/70 transition-colors hover:border-accent hover:text-accent active:scale-90";
+  const ring = "tick";
 
   // One tap when the item has a default account; otherwise pick one first.
   if (from) {
     return (
-      <li className="flex items-center justify-between gap-3 px-4 py-3">
+      <li className="flex items-center justify-between gap-3 px-4 py-3.5">
         {info}
         <span className="flex items-center gap-3">
-          <span className="num">{lkr(item.amount)}</span>
+          <span className="num font-semibold">{lkr(item.amount)}</span>
           <form action={tickRecurring}>
             {hidden}
             <input type="hidden" name="account_id" value={from.id} />
             <input type="hidden" name="amount" value={item.amount} />
             <input type="hidden" name="date" value={date} />
-            <button className={ring} aria-label={`Mark ${item.name} paid`}>D</button>
+            <button className={ring} aria-label={`Mark ${item.name} paid`}><Check /></button>
           </form>
         </span>
       </li>
@@ -329,13 +344,13 @@ function ItemRow({
   }
 
   return (
-    <li className="px-4 py-3">
+    <li className="px-4 py-3.5">
       <details>
         <summary className="flex cursor-pointer list-none items-center justify-between gap-3">
           {info}
           <span className="flex items-center gap-3">
-            <span className="num">{lkr(item.amount)}</span>
-            <span className={ring}>D</span>
+            <span className="num font-semibold">{lkr(item.amount)}</span>
+            <span className={ring}><Check /></span>
           </span>
         </summary>
         <form action={tickRecurring} className="mt-3 grid grid-cols-2 gap-2">

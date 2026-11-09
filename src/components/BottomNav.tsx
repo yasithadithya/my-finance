@@ -1,65 +1,53 @@
 "use client";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { Icon, ICONS } from "@/components/Icons";
 
 const items = [
-  { href: "/", label: "Home", icon: "M3 11.5 12 4l9 7.5V20a1 1 0 0 1-1 1h-5v-6h-6v6H4a1 1 0 0 1-1-1z" },
-  { href: "/pay", label: "Pay", icon: "M9 11l3 3 8-8M20 12v7a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1h11" },
-  { href: "/add", label: "Add", icon: "M12 5v14M5 12h14", primary: true },
-  { href: "/transactions", label: "History", icon: "M4 6h16M4 12h16M4 18h10" },
-  { href: "/accounts", label: "Accounts", icon: "M3 7h18v12H3zM3 11h18M7 15h3" },
+  { href: "/", label: "Home", icon: ICONS.home },
+  { href: "/pay", label: "Pay", icon: ICONS.calendar },
+  { href: "/transactions", label: "History", icon: ICONS.history },
+  { href: "/accounts", label: "Accounts", icon: ICONS.wallet },
 ];
 
-function Icon({ d, size = 22 }: { d: string; size?: number }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-      <path d={d} />
-    </svg>
-  );
-}
-
+/** One UI style floating tab bar, with the add button as its own round button. */
 export default function BottomNav() {
   const path = usePathname();
+  const addActive = path.startsWith("/add");
   return (
     <nav
-      className="fixed inset-x-0 bottom-0 z-20 border-t border-line bg-bg/90 backdrop-blur-md"
-      style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
+      className="pointer-events-none fixed inset-x-0 bottom-0 z-20"
+      style={{ paddingBottom: "max(0.875rem, env(safe-area-inset-bottom))" }}
     >
-      <ul className="mx-auto grid max-w-md grid-cols-5 px-2">
-        {items.map((it) => {
-          const active = it.href === "/" ? path === "/" : path.startsWith(it.href);
-          if (it.primary) {
+      <div className="pointer-events-auto mx-auto flex max-w-md items-center gap-2.5 px-4">
+        <ul className="navbar grid flex-1 grid-cols-4 rounded-full p-1.5">
+          {items.map((it) => {
+            const active = it.href === "/" ? path === "/" : path.startsWith(it.href);
             return (
-              <li key={it.href} className="relative flex justify-center">
+              <li key={it.href}>
                 <Link
                   href={it.href}
-                  aria-label="Add transaction"
                   aria-current={active ? "page" : undefined}
-                  className="absolute -top-5 grid h-14 w-14 place-items-center rounded-full bg-accent text-on-accent shadow-[0_10px_30px_-8px_rgba(94,234,212,0.7)] ring-4 ring-bg transition-transform active:scale-95"
+                  className={`flex flex-col items-center gap-0.5 rounded-full py-1.5 text-[11px] transition-colors ${
+                    active ? "bg-accent/14 font-semibold text-accent" : "font-medium text-muted active:bg-surface-3"
+                  }`}
                 >
-                  <Icon d={it.icon} size={26} />
+                  <Icon d={it.icon} size={22} strokeWidth={active ? 2.2 : 1.9} />
+                  {it.label}
                 </Link>
               </li>
             );
-          }
-          return (
-            <li key={it.href}>
-              <Link
-                href={it.href}
-                aria-current={active ? "page" : undefined}
-                className={`flex flex-col items-center gap-0.5 py-2 text-[11px] transition-colors ${active ? "text-text" : "text-muted"}`}
-              >
-                <span
-                  className={`grid h-8 w-14 place-items-center rounded-full transition-colors ${active ? "bg-accent/15 text-accent" : ""}`}
-                >
-                  <Icon d={it.icon} />
-                </span>
-                {it.label}
-              </Link>
-            </li>
-          );
-        })}
-      </ul>
+          })}
+        </ul>
+        <Link
+          href="/add"
+          aria-label="Add transaction"
+          aria-current={addActive ? "page" : undefined}
+          className="grid h-[3.75rem] w-[3.75rem] shrink-0 place-items-center rounded-full bg-accent text-on-accent shadow-[0_8px_24px_-8px_rgb(3_129_254/0.7)] transition-transform active:scale-92"
+        >
+          <Icon d={ICONS.plus} size={26} strokeWidth={2.4} />
+        </Link>
+      </div>
     </nav>
   );
 }

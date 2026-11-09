@@ -76,26 +76,41 @@ export default function PushToggle() {
     setBusy(false);
   }
 
+  const canToggle = state === "on" || state === "off";
   return (
-    <div className="card p-4">
-      <div className="flex items-center justify-between gap-3">
-        <span>
-          <span className="block font-medium">Reminders on this phone</span>
-          <span className="block text-xs text-muted">
-            {state === "on" && "On. Every morning around 8:00 for bills and payments due."}
+    <div className="ledger">
+      <div className="flex items-center gap-3.5 px-4 py-3.5">
+        <span className="avatar bg-accent/14 text-accent" aria-hidden>
+          <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M6 16V11a6 6 0 1 1 12 0v5l1.5 2h-15zM10 20.5h4" />
+          </svg>
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className="block text-[0.9375rem] font-medium">Reminders on this phone</span>
+          <span className="block text-[0.8125rem] text-muted">
+            {state === "on" && "Every morning around 8:00 for bills and payments due."}
             {state === "off" && "Get a notification when a bill is due."}
             {state === "blocked" && "Blocked. Allow notifications for this app in Chrome's site settings."}
             {state === "unsupported" && (KEY ? "Install the app to your home screen first." : "Push keys aren't set up yet (see README).")}
             {state === "loading" && "Checking…"}
           </span>
         </span>
-        {state === "off" && <button className="btn shrink-0 px-3 py-2 text-sm" onClick={turnOn} disabled={busy}>Turn on</button>}
-        {state === "on" && <button className="btn btn-ghost shrink-0 px-3 py-2 text-sm" onClick={turnOff} disabled={busy}>Turn off</button>}
+        <input
+          type="checkbox"
+          role="switch"
+          aria-label="Reminders on this phone"
+          className="switch"
+          checked={state === "on"}
+          disabled={!canToggle || busy}
+          onChange={() => (state === "on" ? turnOff() : turnOn())}
+        />
       </div>
       {state === "on" && (
-        <button className="mt-3 text-sm text-accent" onClick={test} disabled={busy}>Send a test notification</button>
+        <button className="block w-full px-4 py-3.5 text-left text-[0.9375rem] font-medium text-accent active:bg-surface-2" onClick={test} disabled={busy}>
+          Send a test notification
+        </button>
       )}
-      {msg && <p className="mt-2 text-xs text-muted">{msg}</p>}
+      {msg && <p className="px-4 py-3 text-xs text-muted">{msg}</p>}
     </div>
   );
 }

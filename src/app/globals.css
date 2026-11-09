@@ -1,25 +1,53 @@
 @import "tailwindcss";
 
-/* Direction A, "Dark Obsidian & Mint": near-black surfaces, mint accent,
-   green in, rose out, monospaced figures so money lines up. */
+/* One UI look: soft grey (light) or true black (dark) backgrounds, rounded
+   26px cards with no borders, Samsung blue accent, pill controls.
+   Follows the phone's light/dark setting. */
 :root {
-  --bg: #0a0d11;
-  --surface: #11161c;
-  --surface-2: #19212a;
-  --line: #222b36;
-  --text: #e9eef3;
-  --muted: #8794a5;
-  --accent: #5eead4;
-  --on-accent: #04221d;
-  --in: #4ade80;
-  --out: #fb7185;
-  --warn: #fbbf24;
+  --bg: #f2f2f2;
+  --surface: #ffffff;
+  --surface-2: #ededed;
+  --surface-3: #e2e2e2;
+  --line: #e7e7e7;
+  --text: #111111;
+  --muted: #737373;
+  --accent: #0381fe;
+  --on-accent: #ffffff;
+  --in: #1d9a50;
+  --out: #e5352b;
+  --warn: #d27600;
+  --nav: rgb(255 255 255 / 0.86);
+  --nav-shadow: 0 6px 24px -8px rgb(0 0 0 / 0.18), 0 0 0 1px rgb(0 0 0 / 0.04);
+  --switch-off: #c9c9c9;
+  color-scheme: light;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #000000;
+    --surface: #171717;
+    --surface-2: #262626;
+    --surface-3: #323232;
+    --line: #2a2a2a;
+    --text: #f7f7f7;
+    --muted: #9a9a9a;
+    --accent: #3e91ff;
+    --on-accent: #ffffff;
+    --in: #4cd27a;
+    --out: #ff5d55;
+    --warn: #ffb44a;
+    --nav: rgb(38 38 38 / 0.82);
+    --nav-shadow: 0 6px 24px -6px rgb(0 0 0 / 0.7), 0 0 0 1px rgb(255 255 255 / 0.05);
+    --switch-off: #4a4a4a;
+    color-scheme: dark;
+  }
 }
 
 @theme inline {
   --color-bg: var(--bg);
   --color-surface: var(--surface);
   --color-surface-2: var(--surface-2);
+  --color-surface-3: var(--surface-3);
   --color-line: var(--line);
   --color-text: var(--text);
   --color-muted: var(--muted);
@@ -28,125 +56,216 @@
   --color-in: var(--in);
   --color-out: var(--out);
   --color-warn: var(--warn);
-  --font-sans: var(--font-grotesk), ui-sans-serif, system-ui, sans-serif;
-  /* Headings that used the passbook serif now use the same grotesk, set tighter. */
-  --font-serif: var(--font-grotesk), ui-sans-serif, system-ui, sans-serif;
-  --font-mono: var(--font-jbmono), ui-monospace, SFMono-Regular, monospace;
+  --font-sans: "SamsungOne", "Samsung Sans", var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+  --font-serif: var(--font-sans);
+  --font-mono: var(--font-sans);
 }
 
-html { color-scheme: dark; }
 body {
   background: var(--bg);
   color: var(--text);
   font-family: var(--font-sans);
   -webkit-tap-highlight-color: transparent;
+  font-feature-settings: "cv11", "ss01";
 }
-.num { font-family: var(--font-mono); font-variant-numeric: tabular-nums; letter-spacing: -0.02em; }
-::selection { background: rgb(94 234 212 / 0.3); }
-.font-serif { letter-spacing: -0.02em; }
+.num { font-variant-numeric: tabular-nums; }
+::selection { background: color-mix(in srgb, var(--accent) 30%, transparent); }
 @layer base {
   :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 }
 
 @layer components {
-/* Big money in mono figures. The "Rs" is small and raised. */
+/* Big money. The "Rs" is small and raised, the cents smaller. */
 .money {
-  font-family: var(--font-mono);
-  font-weight: 600;
+  font-weight: 650;
   font-variant-numeric: lining-nums tabular-nums;
-  letter-spacing: -0.04em;
+  letter-spacing: -0.035em;
   line-height: 1.05;
 }
 .money .rs {
-  font-family: var(--font-sans);
-  font-size: 0.42em;
-  font-weight: 500;
-  letter-spacing: 0.02em;
+  font-size: 0.4em;
+  font-weight: 600;
+  letter-spacing: 0;
   color: var(--muted);
-  margin-right: 0.35em;
-  vertical-align: 0.75em;
+  margin-right: 0.3em;
+  vertical-align: 0.8em;
 }
-.money .cents { font-size: 0.6em; color: var(--muted); letter-spacing: 0; }
+.money .cents { font-size: 0.55em; font-weight: 600; color: var(--muted); letter-spacing: -0.01em; }
 
+/* ---------- Header: compact app bar + large title (One UI "viewing area") ---------- */
+.appbar {
+  position: sticky; top: 0; z-index: 15;
+  display: flex; align-items: center; gap: 0.25rem;
+  height: 3.5rem; margin-inline: -1rem; padding-inline: 0.5rem 0.75rem;
+  transition: background-color 0.2s, box-shadow 0.2s;
+}
+.appbar.is-stuck {
+  background: color-mix(in srgb, var(--bg) 88%, transparent);
+  backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
+}
+.appbar-title {
+  min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  font-size: 1.125rem; font-weight: 650; letter-spacing: -0.01em;
+  opacity: 0; transform: translateY(6px); transition: opacity 0.2s, transform 0.2s;
+}
+.appbar.is-stuck .appbar-title { opacity: 1; transform: none; }
+.title-area { padding: clamp(1rem, 7vh, 4rem) 0.25rem 0.5rem; }
+.large-title { font-size: 2.125rem; line-height: 1.12; font-weight: 700; letter-spacing: -0.03em; }
+
+/* ---------- Inputs ---------- */
 .field {
   width: 100%;
-  background: var(--surface-2);
-  border: 1px solid var(--line);
-  border-radius: 0.75rem;
-  padding: 0.7rem 0.85rem;
+  background: var(--surface);
+  border: 0;
+  border-radius: 1rem;
+  padding: 0.875rem 1rem;
   color: var(--text);
   font-size: 1rem;
-  transition: border-color 0.15s;
+  box-shadow: inset 0 0 0 1.5px transparent;
+  transition: box-shadow 0.15s, background-color 0.15s;
 }
-.field::placeholder { color: rgb(135 148 165 / 0.6); }
-.field:focus { outline: none; border-color: var(--accent); }
+.card .field, .panel .field, .ledger .field { background: var(--surface-2); }
+.field::placeholder { color: color-mix(in srgb, var(--muted) 70%, transparent); }
+.field:focus { outline: none; box-shadow: inset 0 0 0 1.5px var(--accent); }
+.field[readonly] { color: var(--muted); }
 select.field {
   appearance: none;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%238794a5' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%238a8a8a' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
   background-repeat: no-repeat;
-  background-position: right 0.85rem center;
-  padding-right: 2.2rem;
+  background-position: right 1rem center;
+  padding-right: 2.5rem;
 }
-.label { display: block; font-size: 0.8125rem; color: var(--muted); margin-bottom: 0.35rem; }
+.label { display: block; font-size: 0.8125rem; font-weight: 600; color: var(--muted); margin-bottom: 0.4rem; padding-inline: 0.25rem; }
+.hint { font-size: 0.75rem; color: var(--muted); padding-inline: 0.25rem; line-height: 1.45; }
 
+/* One UI switch. Works on a plain checkbox, so forms still post "on". */
+.switch {
+  appearance: none; -webkit-appearance: none; flex-shrink: 0; cursor: pointer;
+  position: relative; width: 2.875rem; height: 1.625rem; border-radius: 999px;
+  background: var(--switch-off); transition: background-color 0.2s;
+}
+.switch::after {
+  content: ""; position: absolute; top: 0.1875rem; left: 0.1875rem;
+  width: 1.25rem; height: 1.25rem; border-radius: 999px; background: #fff;
+  box-shadow: 0 1px 3px rgb(0 0 0 / 0.25); transition: transform 0.2s cubic-bezier(0.3, 0.7, 0.3, 1);
+}
+.switch:checked { background: var(--accent); }
+.switch:checked::after { transform: translateX(1.25rem); }
+.switch:disabled { opacity: 0.4; cursor: default; }
+/* A list row holding a label on the left and a switch on the right. */
+.switch-row {
+  display: flex; align-items: center; justify-content: space-between; gap: 1rem;
+  background: var(--surface); border-radius: 1.25rem; padding: 0.875rem 1rem; cursor: pointer;
+}
+.card .switch-row { background: var(--surface-2); }
+
+/* ---------- Buttons ---------- */
 .btn {
   display: inline-flex; align-items: center; justify-content: center; gap: 0.4rem;
-  border-radius: 0.85rem; padding: 0.8rem 1rem; font-weight: 600;
+  min-height: 3rem; border-radius: 999px; padding: 0.75rem 1.25rem;
+  font-size: 1rem; font-weight: 650;
   background: var(--accent); color: var(--on-accent);
-  box-shadow: 0 8px 24px -14px rgb(94 234 212 / 0.7);
-  transition: transform 0.1s, filter 0.15s;
+  transition: transform 0.12s, filter 0.15s, background-color 0.15s;
 }
-.btn:active { transform: scale(0.98); filter: brightness(0.94); }
+.btn:active { transform: scale(0.97); filter: brightness(0.92); }
 .btn:disabled { opacity: 0.5; }
-.btn-ghost { background: var(--surface-2); color: var(--text); border: 1px solid var(--line); box-shadow: none; }
+.btn-sm { min-height: 2.25rem; padding: 0.45rem 1rem; font-size: 0.875rem; }
+.btn-ghost { background: var(--surface); color: var(--text); }
+.card .btn-ghost, .panel .btn-ghost { background: var(--surface-2); }
+.btn-tonal { background: color-mix(in srgb, var(--accent) 14%, transparent); color: var(--accent); }
 .btn-icon {
-  display: grid; place-items: center; width: 2.5rem; height: 2.5rem; border-radius: 999px;
-  color: var(--muted); transition: background 0.15s, color 0.15s;
+  display: grid; place-items: center; width: 2.75rem; height: 2.75rem; border-radius: 999px; flex-shrink: 0;
+  color: var(--text); transition: background-color 0.15s;
 }
-.btn-icon:hover, .btn-icon:active { background: var(--surface-2); color: var(--text); }
+.btn-icon:active { background: var(--surface-3); }
+.link { color: var(--accent); font-weight: 600; }
 
-/* Surfaces: the hero panel (mint glow), plain cards and grouped ledger lists.
-   Hairline borders instead of shadows. */
-.panel {
-  position: relative; border-radius: 1.4rem; padding: 1.25rem;
-  background:
-    radial-gradient(120% 140% at 100% 0%, rgb(94 234 212 / 0.13), transparent 55%),
-    linear-gradient(180deg, #141b22, #0f141a);
-  border: 1px solid #22313a;
+/* ---------- Surfaces ---------- */
+.panel { position: relative; border-radius: 1.625rem; padding: 1.25rem; background: var(--surface); }
+.card { background: var(--surface); border-radius: 1.625rem; }
+.ledger { background: var(--surface); border-radius: 1.625rem; overflow: hidden; }
+.ledger > * { position: relative; }
+/* Inset dividers, like One UI grouped lists. */
+.ledger > * + *::before {
+  content: ""; position: absolute; top: 0; left: 1.125rem; right: 1.125rem; height: 1px; background: var(--line);
 }
-.card { background: var(--surface); border: 1px solid var(--line); border-radius: 1.1rem; }
-.ledger { background: var(--surface); border: 1px solid var(--line); border-radius: 1.1rem; overflow: hidden; }
-.ledger > * + * { border-top: 1px solid var(--line); }
-.ledger > li > a { transition: background 0.15s; }
-.ledger > li > a:active { background: var(--surface-2); }
+.ledger > li > a, .ledger summary { transition: background-color 0.15s; }
+.ledger > li > a:active, .ledger summary:active { background: var(--surface-2); }
+.ledger > li > a { min-height: 3.75rem; }
 
-.section-head { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 0.5rem; padding-inline: 0.25rem; }
-.section-head h2 { font-size: 0.95rem; font-weight: 600; color: var(--text); }
-.section-head a { font-family: var(--font-mono); font-size: 0.75rem; color: var(--accent); }
+.section-head {
+  display: flex; align-items: center; justify-content: space-between; gap: 0.75rem;
+  margin-bottom: 0.5rem; padding-inline: 1.125rem;
+}
+.section-head h2 { font-size: 0.875rem; font-weight: 650; color: var(--muted); }
+.section-head a, .section-head .aside { font-size: 0.875rem; font-weight: 600; color: var(--accent); }
+.section-head .aside.quiet { color: var(--muted); font-weight: 500; }
+
+/* Round icon in front of list rows. */
+.avatar {
+  display: grid; place-items: center; flex-shrink: 0;
+  width: 2.5rem; height: 2.5rem; border-radius: 999px;
+}
 
 .chip {
   display: inline-flex; align-items: center; flex-shrink: 0;
-  border-radius: 999px; padding: 0.1rem 0.55rem; font-size: 0.6875rem; font-weight: 500;
+  border-radius: 999px; padding: 0.15rem 0.6rem; font-size: 0.6875rem; font-weight: 650;
 }
 
-/* Filter pills (History). */
-.pill { flex-shrink: 0; border-radius: 999px; padding: 0.4rem 0.9rem; font-size: 0.8125rem; background: var(--surface-2); border: 1px solid var(--line); color: var(--muted); }
-.pill[aria-current="true"] { background: var(--accent); border-color: var(--accent); color: var(--on-accent); font-weight: 600; }
+/* Filter chips (History). */
+.pill {
+  flex-shrink: 0; border-radius: 999px; padding: 0.5rem 1rem; font-size: 0.875rem; font-weight: 550;
+  background: var(--surface); color: var(--text); transition: background-color 0.15s, color 0.15s;
+}
+.pill[aria-current="true"] { background: var(--accent); color: var(--on-accent); }
+
+/* Segmented control (pill track with a sliding thumb). */
+.seg { position: relative; display: grid; border-radius: 999px; background: var(--surface-2); padding: 0.25rem; }
+.seg-thumb {
+  position: absolute; top: 0.25rem; bottom: 0.25rem; left: 0.25rem; border-radius: 999px;
+  background: var(--surface); box-shadow: 0 1px 4px rgb(0 0 0 / 0.12);
+  transition: transform 0.25s cubic-bezier(0.3, 0.7, 0.3, 1);
+}
+@media (prefers-color-scheme: dark) { .seg-thumb { background: var(--surface-3); } }
+
+/* Round tick (paid / not paid). */
+.tick {
+  display: grid; place-items: center; flex-shrink: 0; width: 2.25rem; height: 2.25rem; border-radius: 999px;
+  border: 2px solid color-mix(in srgb, var(--muted) 55%, transparent); color: transparent;
+  transition: transform 0.12s, background-color 0.15s, border-color 0.15s;
+}
+.tick:active { transform: scale(0.88); }
+.tick.on { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
+
+/* Small tinted pill link (Net position, Breakdown). */
+.tonal-pill {
+  display: inline-flex; align-items: center; gap: 0.4rem;
+  border-radius: 999px; padding: 0.45rem 0.85rem; font-size: 0.875rem;
+  background: var(--surface); transition: background-color 0.15s;
+}
+.tonal-pill:active { background: var(--surface-3); }
+
+.notice { display: flex; align-items: center; gap: 0.5rem; border-radius: 1.25rem; padding: 0.8rem 1rem; font-size: 0.875rem; }
 
 details > summary { list-style: none; }
 details > summary::-webkit-details-marker { display: none; }
 
 /* Bars for card use and payoff progress. */
 .meter { height: 0.375rem; border-radius: 999px; background: var(--surface-2); overflow: hidden; }
-.meter > span { display: block; height: 100%; border-radius: inherit; }
+.meter > span, .meter > div { display: block; height: 100%; border-radius: inherit; }
 
+/* ---------- Floating bottom navigation ---------- */
+.navbar {
+  background: var(--nav); box-shadow: var(--nav-shadow);
+  backdrop-filter: blur(24px) saturate(1.4); -webkit-backdrop-filter: blur(24px) saturate(1.4);
+}
 }
 
 /* ---------- Month runway ---------- */
-/* One tick per day. Past days are mint, today stands tall, event days are taller. */
+/* One tick per day. Past days are tinted, today stands tall, event days are taller. */
 .runway { display: grid; gap: 2px; height: 1.75rem; align-items: end; }
-.runway .day { height: 0.75rem; border-radius: 2px; background: var(--surface-2); transform-origin: bottom; }
-.runway .day.past { background: rgb(94 234 212 / 0.45); }
+.runway .day { height: 0.75rem; border-radius: 3px; background: var(--surface-2); transform-origin: bottom; }
+.runway .day.past { background: color-mix(in srgb, var(--accent) 40%, transparent); }
 .runway .day.event { height: 1.125rem; }
 .runway .day.today { height: 1.75rem; background: var(--accent); }
 .runway-marks { position: relative; height: 1.25rem; margin-top: 0.4rem; }
@@ -155,11 +274,15 @@ details > summary::-webkit-details-marker { display: none; }
   width: 0.55rem; height: 0.55rem; rotate: 45deg; border-radius: 1.5px;
 }
 .runway-marks .mark.statement { background: transparent; border: 1.5px solid var(--muted); }
-.runway-marks .mark.fixed {rotate: 0deg; border-radius: 999px; width: 0.45rem; height: 0.45rem; top: 0.05rem; }
+.runway-marks .mark.fixed { rotate: 0deg; border-radius: 999px; width: 0.45rem; height: 0.45rem; top: 0.05rem; }
 .runway-fill .day { animation: day-in 0.35s cubic-bezier(0.2, 0.7, 0.3, 1) both; animation-delay: calc(var(--i) * 16ms); }
 .runway-fill .mark { animation: mark-in 0.4s cubic-bezier(0.2, 0.7, 0.3, 1) both; animation-delay: 0.6s; }
 @keyframes day-in { from { transform: scaleY(0.15); opacity: 0; } }
 @keyframes mark-in { from { opacity: 0; transform: translateY(-6px); } }
+
+/* Page content eases in, like One UI screen transitions. */
+.page-in { animation: page-in 0.28s cubic-bezier(0.2, 0.7, 0.3, 1) both; }
+@keyframes page-in { from { opacity: 0; transform: translateY(8px); } }
 
 /* ---------- Page loader ---------- */
 /* Delay before showing so quick navigations don't flash. */
@@ -169,12 +292,12 @@ details > summary::-webkit-details-marker { display: none; }
   to { opacity: 1; transform: none; }
 }
 
-/* Three mint coins drop onto a stack, glint, then lift away together. */
+/* Three blue coins drop onto a stack, glint, then lift away together. */
 .coins { position: relative; width: 56px; height: 60px; }
 .coin {
   position: absolute; left: 6px; width: 44px; height: 15px; border-radius: 50%;
-  background: linear-gradient(180deg, #c8fbf1 0%, var(--accent) 40%, #1f9e8c 100%);
-  box-shadow: inset 0 -3px 0 #137565, inset 0 1px 0 rgb(255 255 255 / 0.5), 0 0 14px rgb(94 234 212 / 0.2);
+  background: linear-gradient(180deg, #d4e7ff 0%, #3e91ff 42%, #1d5fc9 100%);
+  box-shadow: inset 0 -3px 0 #174c9e, inset 0 1px 0 rgb(255 255 255 / 0.55), 0 0 14px rgb(62 145 255 / 0.22);
   opacity: 0;
   animation: 2.6s cubic-bezier(0.45, 0, 0.55, 1) infinite both;
 }
@@ -183,7 +306,7 @@ details > summary::-webkit-details-marker { display: none; }
 .coin-3 { bottom: 24px; animation-name: coin-3; }
 .coin-shadow {
   position: absolute; left: 4px; bottom: 0; width: 48px; height: 10px; border-radius: 50%;
-  background: radial-gradient(closest-side, rgb(94 234 212 / 0.3), transparent);
+  background: radial-gradient(closest-side, rgb(62 145 255 / 0.3), transparent);
   animation: coin-shadow 2.6s ease-in-out infinite both;
 }
 /* Static stack, used as the mark on the login screen. */
@@ -208,7 +331,7 @@ details > summary::-webkit-details-marker { display: none; }
   44%  { opacity: 1; transform: translateY(0) scale(1.08, 0.78); filter: none; }
   49%  { transform: translateY(-3px) scale(1); }
   52%  { opacity: 1; transform: translateY(0); filter: none; }
-  60%  { filter: brightness(1.25) drop-shadow(0 0 6px rgb(94 234 212 / 0.7)); }
+  60%  { filter: brightness(1.25) drop-shadow(0 0 6px rgb(62 145 255 / 0.7)); }
   68%, 78% { opacity: 1; transform: translateY(0); filter: none; }
   92%, 100% { opacity: 0; transform: translateY(-22px); }
 }
@@ -225,17 +348,17 @@ details > summary::-webkit-details-marker { display: none; }
 @keyframes dot { 0%, 80%, 100% { opacity: 0.15; } 40% { opacity: 1; } }
 
 /* Skeleton blocks with a soft sweep. */
-.skel-wrap { opacity: 0.75; }
-.skel { position: relative; overflow: hidden; background: var(--surface-2); border-radius: 0.4rem; }
+.skel-wrap { opacity: 0.8; }
+.skel { position: relative; overflow: hidden; background: var(--surface-2); border-radius: 0.5rem; }
 .skel::after {
   content: ""; position: absolute; inset: 0; transform: translateX(-100%);
-  background: linear-gradient(90deg, transparent, rgb(233 238 243 / 0.05), transparent);
+  background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--text) 6%, transparent), transparent);
   animation: shimmer 1.5s ease-in-out infinite;
 }
 @keyframes shimmer { to { transform: translateX(100%); } }
 
 @media (prefers-reduced-motion: reduce) {
-  .loader, .coin, .coin-shadow, .dots span, .skel::after, .runway-fill .day, .runway-fill .mark { animation: none; }
+  .loader, .coin, .coin-shadow, .dots span, .skel::after, .runway-fill .day, .runway-fill .mark, .page-in { animation: none; }
   .coin, .coin-shadow { opacity: 1; }
-  .btn, .field, .btn-icon { transition: none; }
+  .btn, .field, .btn-icon, .switch, .switch::after, .seg-thumb, .appbar, .appbar-title { transition: none; }
 }

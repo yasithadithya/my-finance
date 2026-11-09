@@ -44,7 +44,7 @@ export function RecurringForm({ initial, accounts }: { initial?: RecurringItem; 
           <option value="">Ask each time</option>
           {accounts.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
         </select>
-        <p className="mt-1.5 text-xs text-muted">With an account set, the D tick records the payment in one tap.</p>
+        <p className="hint mt-1.5">With an account set, ticking it on the Pay tab records the payment in one tap.</p>
       </div>
       <div className="grid grid-cols-2 gap-3">
         <div>
@@ -56,8 +56,12 @@ export function RecurringForm({ initial, accounts }: { initial?: RecurringItem; 
           <input id="sort_order" name="sort_order" inputMode="numeric" defaultValue={initial?.sort_order ?? 0} className="field num" />
         </div>
       </div>
-      <label className="flex items-center gap-2 text-sm">
-        <input type="checkbox" name="active" defaultChecked={initial ? initial.active : true} className="h-4 w-4" /> Active
+      <label className="switch-row">
+        <span>
+          <span className="block text-[0.9375rem] font-medium">Active</span>
+          <span className="block text-[0.8125rem] text-muted">Show it on the Pay checklist each month</span>
+        </span>
+        <input type="checkbox" name="active" defaultChecked={initial ? initial.active : true} className="switch" />
       </label>
       <Err state={state} />
       <button className="btn w-full" disabled={pending}>{pending ? "Saving…" : initial ? "Save" : "Add fixed payment"}</button>
@@ -123,14 +127,14 @@ export function PlanForm({
           <input id="monthly_amount" name="monthly_amount" inputMode="decimal" value={monthly} onChange={(e) => setMonthly(e.target.value)} placeholder="auto" className="field num" />
         </div>
       </div>
-      <p className="text-xs text-muted">
+      <p className="hint">
         0% for interest-free plans. Leave Monthly empty to work it out, or enter the amount your bank quoted.
       </p>
       <div>
         <label className="label" htmlFor="first_billing_month">First billed on the statement of</label>
         <input id="first_billing_month" name="first_billing_month" type="month" defaultValue={initial?.first_billing_month.slice(0, 7) ?? purchase?.firstMonth ?? thisMonth} className="field" required />
       </div>
-      {preview && <p className="num rounded-xl bg-surface-2 px-3.5 py-2.5 text-sm">{preview}</p>}
+      {preview && <p className="num rounded-2xl bg-accent/10 px-4 py-3 text-sm font-medium text-accent">{preview}</p>}
       <Err state={state} />
       <button className="btn w-full" disabled={pending}>
         {pending ? "Saving…" : initial ? "Save plan" : purchase ? "Convert to instalments" : "Add plan"}
@@ -160,7 +164,7 @@ export function StatementForm({ cardId, initial, today }: { cardId: string; init
       <div>
         <label className="label" htmlFor="statement_balance">Amount due</label>
         <input id="statement_balance" name="statement_balance" inputMode="decimal" defaultValue={initial?.statement_balance ?? ""} className="field num" required />
-        {!initial && <p className="mt-1.5 text-xs text-muted">For a statement from before you started the app, enter what&apos;s still left to pay.</p>}
+        {!initial && <p className="hint mt-1.5">For a statement from before you started the app, enter what&apos;s still left to pay.</p>}
       </div>
       <Err state={state} />
       <button className="btn w-full" disabled={pending}>{pending ? "Saving…" : "Save statement"}</button>
@@ -202,7 +206,7 @@ export function ReceivableForm({ initial }: { initial?: Receivable }) {
           <input id="expected_date" name="expected_date" type="date" defaultValue={initial?.expected_date ?? ""} className="field" />
         </div>
       </div>
-      <p className="text-xs text-muted">Partly paid and paid are set for you when you record money received.</p>
+      <p className="hint">Partly paid and paid are set for you when you record money received.</p>
       <Err state={state} />
       <button className="btn w-full" disabled={pending}>{pending ? "Saving…" : initial ? "Save" : "Add"}</button>
     </form>
@@ -254,10 +258,10 @@ export function ReconcileForm({ account }: { account: Account }) {
         <div>
           <label className="label" htmlFor="actual_balance">Balance your bank shows</label>
           <input id="actual_balance" name="actual_balance" inputMode="decimal" className="field num" required />
-          {isDebt && <p className="mt-1.5 text-xs text-muted">Money you owe is negative, e.g. −25000.</p>}
+          {isDebt && <p className="hint mt-1.5">Money you owe is negative, e.g. −25000.</p>}
         </div>
       )}
-      <p className="text-xs text-muted">Any difference is added as an adjustment dated today, so the app matches your bank.</p>
+      <p className="hint">Any difference is added as an adjustment dated today, so the app matches your bank.</p>
       <Err state={state} />
       <button className="btn w-full" disabled={pending}>{pending ? "Checking…" : "Reconcile"}</button>
     </form>
